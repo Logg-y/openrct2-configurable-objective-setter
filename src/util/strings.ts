@@ -3,6 +3,8 @@
 
 export const StringTable =
 {
+    PLUGIN_MENU_ITEM: "Configurable Objective Setter",
+
     OK: "OK",
     CANCEL: "Cancel",
     ERROR: "Error",
@@ -21,16 +23,6 @@ export const StringTable =
     UI_GUEST_DIFFICULTY_TOOLTIP: "What percentage of the estimated theoretical maximum possible number of guests is required to beat the scenario.",
     UI_GUEST_DIFFICULTY_EXTHELP: "The randomiser tries to simulate playing through the scenario while building{NEWLINE}a relatively 'normal' park.{NEWLINE}This setting is the percentage of guest spawns that{NEWLINE}the simulation gets.{NEWLINE}{NEWLINE}Because guests and income are closely connected, a higher{NEWLINE}setting will both require you to attract guests more{NEWLINE}efficiently (keep ahead of soft guest cap) and will also be tighter on cash.",
     UI_GUEST_DIFFICULTY_EXTHELP2: "The simulation will try to make use of what is available.{NEWLINE}{NEWLINE}This includes running advertising, and rushing to research the money{NEWLINE}generating cash machine in pay-per-ride parks. This setting does also{NEWLINE}reduce the amount of guests that the simulation will get from advertising.",
-
-    // Removed this option from the UI, for now.
-    // The guest difficulty setting essentially governs financial difficulty as well, because:
-    // 1) Without the cash machine, guest generation is what introduces cash to the game, so pretending x% of guests do not spawn is already a financial handicap
-    // 2) In pay per ride + cash machine, pretending x% of guests do not spawn slows the rate at which the park guest count can increase,
-    //    and slowing the increase in the number of guests in the cycle of withdrawing/spending cash is a financial handicap as well
-    UI_FINANCIAL_DIFFICULTY: "Financial difficulty: ",
-    UI_FINANCIAL_DIFFICULTY_TOOLTIP: "What percentage of the estimated theoretical maximum income is required to beat the scenario.",
-    UI_FINANCIAL_DIFFICULTY_EXTHELP: "The randomiser tries to calculate what the highest amount of cash that{NEWLINE}can be obtained in the time limit is. This setting is the percentage of that{NEWLINE}you should need to get to beat the scenario.{NEWLINE}{NEWLINE}This is factored in AFTER the guest total estimation. Setting both values{NEWLINE}to 50% would expect you to get half the possible guests and half the{NEWLINE}possible income from those guests (which is probably more like 1/4 of the{NEWLINE}'true' max income.)",
-    UI_FINANCIAL_DIFFICULTY_EXTHELP2: "In pay-per-ride parks, this includes expected income from guests using the{NEWLINE}Cash Machine, including rushing research towards it if required.{NEWLINE}{NEWLINE}Additionally, this assumes you do not sell anything currently in the park{NEWLINE}at the start of the game.",
 
     // Doing things this way prevents the double difficulty slider interactions which seems preferable
     UI_CASH_TIGHTNESS: "Financial Difficulty: ",
@@ -214,7 +206,7 @@ export const StringTable =
     UI_SIMSETTINGS_GUEST_TURNOVER_MAXIMUM_EXTHELP: "The default value is based on closing food stalls only.{NEWLINE}Mechanics abuse or less humane methods can get much higher values than{NEWLINE}this.{NEWLINE}{NEWLINE}This includes things like dropping guests into the void.",
 
 
-    SCENARIO_DETAILS_FILLER: "{NEWLINE}{NEWLINE}This scenario has had its objective randomised. Check the Park Objective Randomiser window to see more.",
+    SCENARIO_DETAILS_FILLER: "{NEWLINE}{NEWLINE}This scenario has had its objective changed. Check the Configurable Objective Setter window to see more.",
 
     RANDOMISER_STATE_NOT_STARTED: "Not started: ",
     RANDOMISER_STATE_WAITING_ENGINE_VALUES: "Waiting for engine calculated values...",
@@ -228,4 +220,6 @@ export const StringTable =
     RANDOMISER_STATE_SCENARIO_COMPLETE: "Scenario complete!",
     RANDOMISER_STATE_SCENARIO_FAILED: "Scenario failed!",
     RANDOMISER_STATE_RUINED: "Ruined: don't save/load a game mid randomisation.",
+
+    
 }

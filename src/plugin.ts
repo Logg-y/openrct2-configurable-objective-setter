@@ -3,7 +3,7 @@
 import { startup } from "./startup";
 
 registerPlugin({
-	name: "Park Objective Randomiser",
+	name: "Configurable Objective Setter",
 	version: "0.0.0",
 	authors: [ "Loggy" ],
 	type: "remote",

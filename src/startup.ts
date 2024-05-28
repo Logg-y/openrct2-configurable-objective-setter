@@ -1,4 +1,5 @@
 import { UIMain } from "./core/ui/uimain";
+import { StringTable } from "./util/strings";
 
 function onClickMenuItem(): void
 {
@@ -31,7 +32,7 @@ export function startup()
 	// Register a menu item under the map icon:
 	if (typeof ui !== "undefined")
 	{
-		ui.registerMenuItem("Park Objective Randomiser", () => onClickMenuItem());
+		ui.registerMenuItem(StringTable.PLUGIN_MENU_ITEM, () => onClickMenuItem());
 	}
 }
 

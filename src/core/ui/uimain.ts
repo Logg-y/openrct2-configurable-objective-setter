@@ -405,7 +405,7 @@ const ProfileTab = [
 		defaultvalue: 0,
 		items: [StringTable.UI_PROFILE_1, StringTable.UI_PROFILE_2, StringTable.UI_PROFILE_3],
 		onChange: val => {
-			context.sharedStorage.set<number>("Loggy.ParkObjectiveRandomiser.ActiveProfileIndex", val);
+			context.sharedStorage.set<number>("Loggy.ConfigurableObjectiveSetter.ActiveProfileIndex", val);
 		}
 	}),
 	horizontal([
@@ -587,7 +587,7 @@ const SimulationSettingsTab = [
 
 const UIMainTemplate = tabwindow(
 {
-	title: `Park Objective Randomiser v${pluginversion}`,
+	title: `${StringTable.PLUGIN_MENU_ITEM} v${pluginversion}`,
     width: {value: 400, max: 10000},
     height: {value: 550, max: 10000},
 	padding: 5,
@@ -639,7 +639,7 @@ export function UIMain(): void
 		
 		if (haveLoadedProfile == false)
 		{
-			console.log("Objective Randomiser: First load, fetching saved profile data")
+			console.log("Objective Configurer: First load, fetching saved profile data")
 			loadStoreMap();
 			haveLoadedProfile = true;
 		}
