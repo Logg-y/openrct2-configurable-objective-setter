@@ -26,7 +26,7 @@ export const StringTable =
 
     // Doing things this way prevents the double difficulty slider interactions which seems preferable
     UI_CASH_TIGHTNESS: "Financial Difficulty: ",
-    UI_CASH_TIGHTNESS_TOOLTIP: "Financial pressures will be increased until the simulation finishes a month with about this amount of cash remaining at some point in its run through the scenario.",
+    UI_CASH_TIGHTNESS_TOOLTIP: "Financial pressures will be increased until the average amount of cash the simulation has on hand every month is about this value.",
 
     UI_STARTING_CASH: "Starting Cash: ",
     UI_STARTING_CASH_TOOLTIP: "The amount of cash you start the game with, if you max your loan.",
@@ -103,7 +103,7 @@ export const StringTable =
     UI_FINANCIAL_MINIMUM_LOAN_INTEREST: "Min loan interest: ",
     UI_FINANCIAL_MINIMUM_LOAN_INTEREST_TOOLTIP: "Loan interest will be forced to always be higher than this value. A high value of loan interest can be interesting as it adds a choice between building more park and paying off loan.",
 
-    UI_FINANCIAL_SCENARIO_INTEREST: "Scenario's base interest (if RCT1, use 1.37): ",
+    UI_FINANCIAL_SCENARIO_INTEREST: "Scenario's base interest (for RCT1 scenarios use 1.37): ",
     UI_FINANCIAL_SCENARIO_INTEREST_TOOLTIP: "The plugin API cannot access a scenario's base interest so I have to ask for it. For scenarios using RCT1 interest calculation, this should be set to ~1.37.",
 
     UI_FINANCIAL_DIFFICULTY_METHODS_MIN: "Min number of financial pressures: ",

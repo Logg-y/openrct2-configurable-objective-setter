@@ -1,7 +1,6 @@
 import { StringTable } from "../util/strings";
 import { setParkStorageKey } from "./parkstorage";
 
-type FinancialStart = "nodebt" | "highinterest" | "highdebt";
 export type FinancialPressure = "guestcash" | "loaninterest" | "landcost" | "forcebuyland" | "initialcash" | "initialdebt";
 
 // A type that holds settings for multiple FinancialPressures at once
@@ -26,27 +25,29 @@ export const FinancialPressureParams: Record<FinancialPressure, FinancialPressur
     {
         "min": 150,
         "max": 1500,
-        "step": -50,
+        "step": -1,
     },
     "loaninterest":
     {
         // ScenarioSettings.rollRandom overwrites min bsaed on config
         "min": 1,
-        "max": 100,
-        "step": 0.5,
+        "max": 150,
+        "step": 0.1,
     },
     "landcost":
     {
         "min": 100,
-        "max": 5000,
-        "step": 50,
+        // Setting this value too high will tend to make it force you to build only on your starting land...
+        // It also makes deviating from the target density even slightly really punishing.
+        "max": 1500,
+        "step": 1,
     },
     "forcebuyland":
     {
         "min": 0,
         // MapAnalysis.analyseMapAfterSettings will write this when the value is known
         "max": 0,
-        "step": Math.floor(park.parkSize/70),
+        "step": Math.max(1, Math.floor(park.parkSize/1000)),
     },
     "initialcash":
     {
@@ -59,7 +60,7 @@ export const FinancialPressureParams: Record<FinancialPressure, FinancialPressur
     {
         "min": 0,
         "max": undefined,
-        "step": 30000,
+        "step": 10000,
     },
 }
 
@@ -73,7 +74,6 @@ interface ScenarioSettingsType
     payPerRide: boolean,
     objectiveType: ScenarioObjectiveType,
     flags: ParkFlags[],
-    financialStart: FinancialStart,
     financialPressures: FinancialPressure[],
     umbrellaChance: number;
     narrowIntensity: boolean;
@@ -96,6 +96,7 @@ interface ScenarioSettingsType
     adjustSettingsForFinancialPressure(pressure: FinancialPressure, amount: number, adjustType: "add" | "set"): void,
     getValueFromFinancialPressure(pressure: FinancialPressure) : number,
     loadFinancialPressureSettings(settings: FinancialPressureSettings) : void,
+    getFinancialPressureSettings(): Record<FinancialPressure, number>,
 
     finalise(): void,
 }
@@ -157,11 +158,11 @@ export var ScenarioSettings: ScenarioSettingsType =
     payPerRide: true,
     objectiveType: "haveFun",
     flags: [],
-    financialStart: "nodebt",
     financialPressures: [],
     umbrellaChance: 0,
     narrowIntensity: false,
-    guestInitialCash: park.guestInitialCash,
+    // Based on Arid Heights the game behaves like this even when set to 0, which isn't what the code seems to be saying but I don't really get it
+    guestInitialCash: Math.max(150, park.guestInitialCash),
     landPrice: 800,
     loanInterest: 5,
     initialLoan: park.bankLoan,
@@ -218,7 +219,6 @@ export var ScenarioSettings: ScenarioSettingsType =
                     this.cashMachineMonth = 0;
                 }
             }
-
         }
         console.log(`Objective: ${this.objectiveType}`);
 
@@ -263,36 +263,12 @@ export var ScenarioSettings: ScenarioSettingsType =
         {
             this.flags.push("forbidLandscapeChanges");
         }
-        let noDebtWeight =  getConfigOption("FinancialStartWeightNoDebt");
-        let highInterestWeight =  getConfigOption("FinancialStartWeightHighInterest");
-        let highDebtWeight =  getConfigOption("FinancialStartWeightHighDebt");
-        if (this.objectiveType === "repayLoanAndParkValue")
-        {
-            noDebtWeight = 0;
-            highInterestWeight = 0;
-        }
-        roll = context.getRandom(0, noDebtWeight + highInterestWeight + highDebtWeight);
-        if (roll < noDebtWeight)
-        {
-            this.financialStart = "nodebt";
-        }
-        else
-        {
-            roll -= noDebtWeight;
-            if (roll < highInterestWeight)
-            {
-                this.financialStart = "highinterest";
-            }
-            else
-            {
-                this.financialStart = "highdebt";
-            }
-        }
         let numFinancialPressures = context.getRandom(getConfigOption("FinancialDifficultyMethodsMin"), 1 + getConfigOption("FinancialDifficultyMethodsMax"));
         while (true)
         {
             if (this.financialPressures.length >= numFinancialPressures)
             {
+                console.log(`got enough pressures: ${this.financialPressures.length}`);
                 break;
             }
             let eligiblePressures: FinancialPressure[] = [];
@@ -311,15 +287,21 @@ export var ScenarioSettings: ScenarioSettingsType =
                 }
             }
             // This option makes no sense in no debt starts
-            if (getConfigOption("FinancialDifficultyLoanInterest") && this.financialPressures.indexOf("loaninterest") <= -1 && this.financialStart !== "nodebt")
+            if (getConfigOption("FinancialDifficultyLoanInterest") && this.financialPressures.indexOf("loaninterest") <= -1 && this.financialPressures.indexOf("initialdebt") > -1)
             {
                 eligiblePressures.push("loaninterest");
             }
+            if (getConfigOption("FinancialDifficultyStartDebt") && this.financialPressures.indexOf("initialdebt") <= -1)
+            {
+                eligiblePressures.push("initialdebt");
+            }
             if (eligiblePressures.length == 0)
             {
+                console.log(`no more eligible pressures to add`);
                 break;
             }
             let pickedIndex = context.getRandom(0, eligiblePressures.length);
+            console.log(`Add financial pressure: ${eligiblePressures[pickedIndex]}`);
             this.financialPressures.push(eligiblePressures[pickedIndex]);
             if (eligiblePressures[pickedIndex] == "forcebuyland") 
             {
@@ -327,16 +309,21 @@ export var ScenarioSettings: ScenarioSettingsType =
                 numFinancialPressures++;
             }
         }
+
+        // Repay loan needs the initial debt to be messed with to make any sense at all
+        if (this.objectiveType == "repayLoanAndParkValue" && this.financialPressures.indexOf("initialdebt") <= -1)
+        {
+            this.financialPressures.push("initialdebt");
+        }
+
+
         FinancialPressureParams.initialcash.max = getConfigOption("StartingCash") + 250000;
         FinancialPressureParams.loaninterest.min = getConfigOption("FinancialDifficultyMinInterestRate");
+        this.loanInterest = Math.max(FinancialPressureParams.loaninterest.min, this.loanInterest);
     },
 
-    // Return the current ScenarioSettings parameter value for the given pressure.
-    // (eg "initialcash" returns ScenarioSettings.initialCash)
-    getValueFromFinancialPressure(pressure: FinancialPressure) : number
+    getFinancialPressureSettings(): Record<FinancialPressure, number>
     {
-        // Writing it this way has the advantage of this causing a TS error if new pressures are added
-        // but aren't added to this
         let rec: Record<FinancialPressure, number> = {
             "landcost":this.landPrice,
             "forcebuyland":this.numOwnedTilesToBuyable,
@@ -345,7 +332,14 @@ export var ScenarioSettings: ScenarioSettingsType =
             "initialcash":this.initialCash,
             "initialdebt":this.initialDebt,
         };
-        return rec[pressure]
+        return rec;
+    },
+
+    // Return the current ScenarioSettings parameter value for the given pressure.
+    // (eg "initialcash" returns ScenarioSettings.initialCash)
+    getValueFromFinancialPressure(pressure: FinancialPressure) : number
+    {
+        return this.getFinancialPressureSettings()[pressure];
     },
 
     // Adjust the ScenarioSettings attribute(s) that correspond with FinancialPressure
@@ -359,11 +353,13 @@ export var ScenarioSettings: ScenarioSettingsType =
         //console.log(`Set pressure ${pressure} to ${val} (mode=${adjustType}, amt=${amount})`);
         val = Math.max(FinancialPressureParams[pressure].min || val, Math.min(FinancialPressureParams[pressure].max || val, val));
         if (pressure == "landcost") { this.landPrice = val; }
-        if (pressure == "guestcash") { this.guestInitialCash = val; }
-        if (pressure == "loaninterest") { this.loanInterest = val; }
-        if (pressure == "initialcash") { this.initialCash = val; }
-        if (pressure == "forcebuyland") { this.numOwnedTilesToBuyable = val; }
-        if (pressure == "initialdebt") { this.initialDebt = val; }
+        else if (pressure == "guestcash") { this.guestInitialCash = val; }
+        else if (pressure == "loaninterest") { this.loanInterest = val; }
+        else if (pressure == "initialcash") { this.initialCash = val; }
+        else if (pressure == "forcebuyland") { this.numOwnedTilesToBuyable = val; }
+        // At some point this can get large enough to introduce floating point rounding errors
+        // Ideally we stay on round multiples of 1000
+        else if (pressure == "initialdebt") { this.initialDebt = 10000 * Math.round(val/10000); }
     },
 
     loadFinancialPressureSettings(settings: FinancialPressureSettings)
@@ -385,6 +381,7 @@ export var ScenarioSettings: ScenarioSettingsType =
         {
             scenario.objective.type = "guestsAndRating";
             scenario.objective.guests = this.objectiveQuantity;
+            park.setFlag("open", true);
         }
         else
         {
@@ -392,7 +389,7 @@ export var ScenarioSettings: ScenarioSettingsType =
         }
         let oldDetails = scenario.details;
         scenario.details = oldDetails + StringTable.SCENARIO_DETAILS_FILLER;
-        park.setFlag("freeParkEntry", !this.payPerRide);
+        park.setFlag("freeParkEntry", this.payPerRide);
         park.setFlag("difficultGuestGeneration", this.flags.indexOf("difficultGuestGeneration") > -1);
         park.setFlag("difficultParkRating", this.flags.indexOf("difficultParkRating") > -1);
         park.setFlag("forbidHighConstruction", this.flags.indexOf("forbidHighConstruction") > -1);
@@ -400,15 +397,14 @@ export var ScenarioSettings: ScenarioSettingsType =
         park.setFlag("forbidMarketingCampaigns", this.flags.indexOf("forbidMarketingCampaigns") > -1);
         park.setFlag("forbidTreeRemoval", this.flags.indexOf("forbidTreeRemoval") > -1);
         park.setFlag("noMoney", this.flags.indexOf("noMoney") > -1);
-        park.setFlag("open", this.flags.indexOf("open") > -1);
         park.setFlag("preferLessIntenseRides", this.flags.indexOf("preferLessIntenseRides") > -1);
         park.setFlag("preferMoreIntenseRides", this.flags.indexOf("preferMoreIntenseRides") > -1);
         park.setFlag("scenarioCompleteNameInput", this.flags.indexOf("scenarioCompleteNameInput") > -1);
         park.setFlag("unlockAllPrices", this.flags.indexOf("unlockAllPrices") > -1);
         park.landPrice = this.landPrice;
         park.constructionRightsPrice = this.landPrice;
-        park.bankLoan = this.initialLoan;
-        park.maxBankLoan = this.maxLoan;
+        park.bankLoan = this.initialLoan + this.initialDebt;
+        park.maxBankLoan = this.maxLoan + this.initialDebt;
         park.cash = this.initialCash;
         date.monthsElapsed = 0;
         date.monthProgress = 0;

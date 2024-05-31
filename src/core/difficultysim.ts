@@ -43,79 +43,60 @@ interface SoftGuestCapCost
     quantity: number;
 }
 
-interface RideBuildingOption
+interface BaseSpendingOption
 {
-    type: "building",
-    softGuestCapIncrease: number,
-    cost: number,
+    // ActionIncome - used only to evaluate cost/benefit of the option
+    // I imagine this as "what financial change will this give over the rest of the scenario's duration", or at least a rough estimate of that
     actionIncome: number,
+    // Cost - the actual cost for the option
+    cost: number,
+    // The actual number of guests by taking the option
+    extraGuests: number;
+}
+
+interface RideBuildingOption extends BaseSpendingOption
+{
+    type: "building",   
     landTiles: number,
     rideCost: number,
     landCost: number
 }
 
-interface AdvertisingOption
+interface AdvertisingOption extends BaseSpendingOption
 {
     type: "advertising",
-    extraGuests: number;
-    cost: number;
-    actionIncome: number,
     campaign: AdvertisingCampaign,
 }
 
-interface RepayLoanOption
+interface RepayLoanOption extends BaseSpendingOption
 {
     type: "repayloan",
-    extraGuests: 0,
-    cost: number,
-    actionIncome: number,
 }
 
-interface IncreaseLoanOption
+interface IncreaseLoanOption extends BaseSpendingOption
 {
     type: "increaseloan",
-    extraGuests: 0,
-    cost: number,
-    actionIncome: number,
 }
 
-// extraGuests - the actual number of guests by taking the option
-// cost - the actual cost for the option
-// actionIncome - used only to evaluate cost/benefit of the option
+
 type SpendingOption = RideBuildingOption | AdvertisingOption | RepayLoanOption | IncreaseLoanOption;
+
+function getGainPerCost(option: SpendingOption, strategy: SpendingStrategy)
+{
+    let cost = option.cost;
+    if (cost === 0) { cost = 0.000001 }
+    let gain = (strategy == "guestcount") ? option.extraGuests : option.actionIncome;
+    return gain / cost;
+}
 
 // Sort an array of SpendingOptions based on what gives the best (guest or long term profit) to cost ratio.
 function sortSpendingOptions(options: SpendingOption[], strategy: SpendingStrategy): SpendingOption[]
 {
     return options.sort((first, second) => {
-        let one = first.actionIncome - first.cost;
-        let two = second.actionIncome - second.cost;
-        if (strategy === "guestcount")
-        {
-            if (first.type === "building")
-            {
-                one = first.softGuestCapIncrease/(one !== 0 ? one : 0.0001);
-            }
-            else
-            {
-                one = first.extraGuests/(one !== 0 ? one : 0.0001);
-            }
-            if (second.type === "building")
-            {
-                two = second.softGuestCapIncrease/(two !== 0 ? two : 0.0001);
-            }
-            else
-            {
-                two = second.extraGuests/(two !== 0 ? two : 0.0001);
-            }
-        }
-        else if (strategy === "profit")
-        {
-            one = first.cost/(one !== 0 ? one : 0.0001);
-            two = second.cost/(two !== 0 ? two : 0.0001);
-        }
-        if (one > two) { return 1; }
-        if (two > one) { return -1; }
+        let one = getGainPerCost(first, strategy);
+        let two = getGainPerCost(second, strategy);
+        if (one < two) { return 1; }
+        if (two < one) { return -1; }
         return 0;
     });
 }
@@ -128,10 +109,6 @@ interface NaturalGuestGeneration
     current: number,
 }
 
-interface GuestCountsByCash
-{
-    [cash: number]: number;
-}
 
 export class DifficultySim
 {
@@ -147,14 +124,18 @@ export class DifficultySim
     buyableLand=0;
     // Purely to hold results from simulation
     entryTicketsThisMonth=0;
-    passiveExpenditure=0;
+    lastMonthCashDeltaWithoutRideTickets=0;
     lowestCashAvailable = -1;
-    guestCountsByCash: GuestCountsByCash = [];
+    totalEndMonthCash = 0;
+    averageEndMonthCash = 0;
+    guestCountsByCash: Record<number, number> = {}
     monthExceededDensityLimit: undefined | number = undefined;
     totalLandBought = 0;
     totalLandUsage = 0;
+    // The higher the value, the more successful the sim is
+    objectiveMetric = 0;
 
-    // A list of strings that report what we did this month
+    // A list of strings that chronologically lists what the simulation was doing
     activityLog: string[] = [];
 
 
@@ -219,12 +200,13 @@ export class DifficultySim
             current: Math.floor(16384 * (currentProbability/65535) * guestDifficulty),
         }
         // If current guest generation would have us cross the soft guest cap, we need to lower it
+        //this.activityLog.push(`In park: ${this.guestsInPark} vs cap ${this.softGuestCap}, with current gen = ${this.guestsInPark + returnVal.current}`);
         if (this.guestsInPark <= this.softGuestCap && this.guestsInPark + returnVal.current > this.softGuestCap)
         {
             let currentOvershoot = (this.guestsInPark + returnVal.current) - this.softGuestCap;
             if (currentOvershoot > 0)
             {
-                let proportionOfMonthOver = (currentOvershoot/returnVal.current);
+                let proportionOfMonthOver = Math.min(1, currentOvershoot/returnVal.current);
 
                 let oldGuestsInPark = this.guestsInPark;
                 this.guestsInPark = this.softGuestCap+1;
@@ -298,13 +280,12 @@ export class DifficultySim
         return this.getCostOfAdditionalEasySoftGuestCap(desiredAdditional);
     }
 
-    getAmountOfSoftGuestCapThatCanBeAfforded(budget: number): SoftGuestCapCost
+    getMaxSoftGuestCapWithinBudget(budget: number): SoftGuestCapCost
     {
         let costForOne = this.getCostOfAdditionalSoftGuestCap(1).totalCost;
         let expectedAmount = Math.floor(budget/costForOne);
         // This is potentially a performance issue when crossing the 1000 threshold in difficult guest gen parks
         // or when crossing into needing to buy land
-        // Larger steps may be a good idea
         let step = 128;
         let prevCost = this.getCostOfAdditionalSoftGuestCap(expectedAmount); 
         if (prevCost.totalCost > budget)
@@ -316,34 +297,39 @@ export class DifficultySim
                     expectedAmount -= step;
                     prevCost = this.getCostOfAdditionalSoftGuestCap(expectedAmount);
                 }
+                // went too far
+                expectedAmount += step;
+                prevCost = this.getCostOfAdditionalSoftGuestCap(expectedAmount);
+                step /= 2;
                 if (step == 1)
                 {
                     break;
                 }
-                // went too far
-                expectedAmount += step;
-                step /= 2;
             }
             return prevCost;
         }
-        while (true)
+        else if (prevCost.totalCost < budget)
         {
-            while (prevCost.totalCost < budget)
+            while (true)
             {
-                expectedAmount += step;
+                while (prevCost.totalCost < budget)
+                {
+                    expectedAmount += step;
+                    prevCost = this.getCostOfAdditionalSoftGuestCap(expectedAmount);
+                }
+                // gone too far
+                expectedAmount -= step;
                 prevCost = this.getCostOfAdditionalSoftGuestCap(expectedAmount);
+                step /= 2;
+                if (step == 1)
+                {
+                    break;
+                }
             }
-            // gone too far
-            expectedAmount -= step;
-            step /= 2;
-            if (step == 1)
-            {
-                break;
-            }
+            prevCost = this.getCostOfAdditionalSoftGuestCap(expectedAmount);
+            return prevCost;
         }
-        // This loop will push it over budget
-        expectedAmount--;
-        return this.getCostOfAdditionalSoftGuestCap(expectedAmount);
+        return prevCost;
     }
 
     getCashPerNewGuest()
@@ -357,23 +343,87 @@ export class DifficultySim
         
     }
 
+    getLongTermValuePerGuest(strategy: SpendingStrategy)
+    {
+        // Assume: if guestcount strategy, guestcount strategy forever
+        // if profit strategy, profit strategy for half the remaining time?
+        let profitMonths = Math.floor(this.monthsLeft/2);
+        if (strategy == "guestcount")
+        {
+            profitMonths = 0;
+        }
+        let guestCountMonths = this.monthsLeft - profitMonths;
+
+        if (!ScenarioSettings.payPerRide)
+        {
+            // We only open stalls in guest count months to keep guests in
+            return (this.getCashPerNewGuest() + (guestCountMonths * getConfigOption("SimGuestStallIncome")));
+        }
+        else
+        {
+            let monthsBeforeCashMachine = this.monthsLeft;
+            let profitMonthsBeforeCashMachine = profitMonths;
+            let guestcountMonthsBeforeCashMachine = guestCountMonths;
+            if (ScenarioSettings.cashMachineMonth !== undefined)
+            {
+                monthsBeforeCashMachine = Math.max(0, ScenarioSettings.cashMachineMonth - this.monthsCompleted);
+                profitMonthsBeforeCashMachine = Math.max(0, Math.min(monthsBeforeCashMachine, profitMonths));
+                guestcountMonthsBeforeCashMachine = Math.max(0, Math.min(monthsBeforeCashMachine-profitMonths, guestCountMonths));
+                //this.activityLog.push(`Cash machine is available in ${monthsBeforeCashMachine} months: ${profitMonthsBeforeCashMachine} profit before, ${guestcountMonthsBeforeCashMachine} guestcount before`);
+            }
+
+            // 4 variables:
+            // profit months with cash machine    
+            // guestcount months with cash machine
+            // (but these two are the same)
+            // profit months without cash machine - consider turnover
+            // guestcount months without cash machine - assume half income and no turnover
+
+            let monthsAfterCashMachine = this.monthsLeft - monthsBeforeCashMachine;
+            let rideIncome = getConfigOption("SimGuestRideIncome");
+
+            let cashMachinePart = monthsAfterCashMachine * (rideIncome + getConfigOption("SimGuestStallIncome"));
+            if (monthsAfterCashMachine > 0)
+            {
+                //this.activityLog.push(`Cash machine months: ${monthsAfterCashMachine}, total contribution = ${cashMachinePart}`);
+            }
+
+            let brokeLeaveChance = getConfigOption("SimGuestBrokeLeaveProbability");
+            let expectedSpendingTime = this.getCashPerNewGuest() / rideIncome;
+            // Every this many months, we get this.CashPerNewGuest() income?
+            let averageGuestTurnoverTime = expectedSpendingTime + 1/brokeLeaveChance;
+
+            let nonCashMachineProfit = profitMonthsBeforeCashMachine * (this.getCashPerNewGuest()/averageGuestTurnoverTime);
+            let nonCashMachineGuestcount = this.getCashPerNewGuest();
+
+            let proportionProfitMonthsWithoutCM = profitMonthsBeforeCashMachine/this.monthsLeft;
+            let proportionGuestcountMonthsWithoutCM = guestcountMonthsBeforeCashMachine/this.monthsLeft;
+
+            //this.activityLog.push(`Expected months: ${profitMonthsBeforeCashMachine} profit w/o cash machine, ${guestcountMonthsBeforeCashMachine} guestcount w/o cash machine`);
+            //this.activityLog.push(`Expected values per month: ${nonCashMachineProfit} profit, ${nonCashMachineGuestcount} guestcount`);
+
+            return cashMachinePart + (proportionProfitMonthsWithoutCM * nonCashMachineProfit) + (proportionGuestcountMonthsWithoutCM * nonCashMachineGuestcount);
+        }
+    }
+
     buildAdvertisingSpendingOptions(strategy: SpendingStrategy): AdvertisingOption[]
     {
         let cashPerGuest = this.getCashPerNewGuest();
         let guestDifficulty = (getConfigOption("GuestDifficulty"))/100;
         let out: AdvertisingOption[] = [];
+        let valuePerGuest = this.getLongTermValuePerGuest(strategy);
         out.push({
             type: "advertising",
             campaign: "park",
             cost: 3000*monthWeeks,
-            actionIncome: (62.5 * cashPerGuest * guestDifficulty),
+            actionIncome: (62.5 * valuePerGuest * guestDifficulty),
             extraGuests: 15.63*monthWeeks*guestDifficulty,
         });
         out.push({
             type: "advertising",
             campaign: "ride",
             cost: 2000*monthWeeks,
-            actionIncome: (50 * cashPerGuest*guestDifficulty),
+            actionIncome: (50 * valuePerGuest*guestDifficulty),
             extraGuests: 12.5*monthWeeks*guestDifficulty,
         });
         out.push({
@@ -381,7 +431,7 @@ export class DifficultySim
             campaign: "freeFoodDrink",
             // I'm going to completely ignore the cost of the free food/drink item
             // because it's pretty much negligible and other assumptions in this simulation will inevitably be more inaccurate
-            actionIncome: (50*cashPerGuest*guestDifficulty),
+            actionIncome: (50*valuePerGuest*guestDifficulty),
             cost: 500*monthWeeks,
             extraGuests: 12.5*monthWeeks*guestDifficulty,
         });
@@ -391,35 +441,40 @@ export class DifficultySim
                 type: "advertising",
                 campaign: "freeRide",
                 // Sure, they get one free ride, but after that we get to help ourselves to the rest of those pockets
-                actionIncome: (75* cashPerGuest*guestDifficulty),
+                actionIncome: (75*valuePerGuest*guestDifficulty),
                 cost: 500*monthWeeks,
                 extraGuests: 18.75*monthWeeks*guestDifficulty,
             });
         }
         else
         {
+            let umbrellaIncome = Math.min(cashPerGuest, 200) * (1.0 - getConfigOption("GuestUmbrellaChance"));
+            let costOfOneSGC = this.getCostOfAdditionalSoftGuestCap(1).totalCost;
             if (strategy === "guestcount")
             {
-                let umbrellaIncome = Math.min(cashPerGuest, 200) * (1.0 - getConfigOption("GuestUmbrellaChance"));
                 out.push({
                     type: "advertising",
                     campaign: "freeEntry",
                     // This is the campaign that actively costs you money, because it puts guests in your park that pay no entry fee
                     // Umbrellas can get a bit of that back though
-                    actionIncome: (-100 * cashPerGuest * guestDifficulty * 0.5) + 
-                        (umbrellaIncome * guestDifficulty),
+                    // ... and it sets us back some SGC as well
+                    actionIncome: (-100 * cashPerGuest * guestDifficulty) 
+                                  + (umbrellaIncome * guestDifficulty)
+                                  - (50 * costOfOneSGC)
+                                  + (100 * valuePerGuest * guestDifficulty),
                     cost: 500*monthWeeks,
                     extraGuests: 25*monthWeeks*guestDifficulty,
                 });
             }
-            let umbrellaIncome = Math.min(cashPerGuest/2, 200) * (1.0 - getConfigOption("GuestUmbrellaChance"));
             out.push({
                 type: "advertising",
                 campaign: "halfPriceEntry",
                 // This also leaves guests with more in their pockets than normal
                 // ... but overcharging for umbrellas also lets you get some of that back
-                actionIncome: (-50 * cashPerGuest/2 * guestDifficulty * 0.5) + 
-                    (umbrellaIncome * guestDifficulty),
+                actionIncome: (-50 * cashPerGuest/2 * guestDifficulty)
+                              + (umbrellaIncome * guestDifficulty)
+                              - (25 * costOfOneSGC)
+                              + (50 * valuePerGuest * guestDifficulty),
                 cost: 500*monthWeeks,
                 extraGuests: 12.5*monthWeeks*guestDifficulty,
             });
@@ -435,17 +490,21 @@ export class DifficultySim
         let loanWeCantRepay = Math.max(0, this.unrepaidLoan - loanWeCanRepay);
         let bigPart = loanWeCantRepay * 5 * ScenarioSettings.loanInterest;
         let loanInterest = monthWeeks * (bigPart >>> 14);
+        // TODO check how long the research queue is and stop when we complete it
+        let researchCost = 4000;
         this.activityLog.push(context.formatString(`Paid {CURRENCY} ride upkeep.`, sgc));
         this.activityLog.push(context.formatString(`Paid {CURRENCY} staff wages.`, staff));
+        this.activityLog.push(context.formatString(`Paid {CURRENCY} for research.`, researchCost));
         this.activityLog.push(context.formatString(`Paid {CURRENCY} loan interest on {CURRENCY} loan we can't repay right now.`, loanInterest, loanWeCantRepay));
-        this.passiveExpenditure = sgc + staff + loanInterest;
-        this.cashAvailable -= this.passiveExpenditure;
+        let passiveExpenditure = sgc + staff + loanInterest + researchCost;
+        this.lastMonthCashDeltaWithoutRideTickets -= passiveExpenditure;
+        this.cashAvailable -= passiveExpenditure;
     }
 
     calculateRideTickets(maxIncomePerGuest: number, updateCashDict: boolean)
     {
         let total = 0;
-        let newCountsByCash: GuestCountsByCash = [];
+        let newCountsByCash: Record<number, number> = [];
         for (let cashAmount in this.guestCountsByCash)
         {   
             let cashAmountNumber = Number(cashAmount);
@@ -457,6 +516,13 @@ export class DifficultySim
         if (updateCashDict)
         {
             this.guestCountsByCash = newCountsByCash;
+            let pairs = [];
+            for (const k in this.guestCountsByCash)
+            {
+                let val = this.guestCountsByCash[k];
+                pairs.push(`${k}: ${val}`);
+            }
+            //this.activityLog.push(`Guest counts by cash: ${pairs.join(", ")}`);
         }
         return total;
     }
@@ -478,14 +544,18 @@ export class DifficultySim
             {
                 // This is really crude (will be imperfect), but in reality getting every guest to zero cash isn't feasible for an actual player anyway.
                 let maxPossible = this.calculateRideTickets(maxProfitPerGuest, false);
-                let desiredRideTickets = Math.max(0, maxPossible - this.cashAvailable);
-                let amountToCharge = Number((desiredRideTickets/maxPossible).toFixed(1));
+                // Have to take into account how much we're losing and how many months left too
+                let expectedCashAtEndIfNoRideTickets = this.cashAvailable + (this.lastMonthCashDeltaWithoutRideTickets * this.monthsLeft);
+                let monthlyRideTicketsNeededToSustain = Math.max(0, -1 * expectedCashAtEndIfNoRideTickets/this.monthsLeft);
+                this.activityLog.push((context.formatString(`We think we would have {CURRENCY} at end with 0 ride tickets, so we want {CURRENCY} per month to sustain that`, expectedCashAtEndIfNoRideTickets, monthlyRideTicketsNeededToSustain)));
+                let desiredRideTickets = Math.min(monthlyRideTicketsNeededToSustain, maxPossible);
+                let amountToCharge = Number((desiredRideTickets/this.guestsInPark).toFixed(3));
                 parkEntryOrRideTickets = this.calculateRideTickets(amountToCharge, true);
-                this.activityLog.push(context.formatString("Deliberately undercharged ride tickets: {CURRENCY} per guest, aiming for {CURRENCY} total income", amountToCharge, desiredRideTickets));
+                this.activityLog.push(context.formatString("Deliberately undercharged ride tickets: {CURRENCY} per guest, aiming for {CURRENCY} of max possible {CURRENCY} total income", amountToCharge, desiredRideTickets, maxPossible));
             }
             else if (!cashMachineAvailable)
             {
-                parkEntryOrRideTickets = this.calculateRideTickets(maxProfitPerGuest, true);
+                parkEntryOrRideTickets = this.calculateRideTickets(maxProfitPerGuest, true);  
             }
             else
             {
@@ -499,8 +569,8 @@ export class DifficultySim
         {
             stalls = this.calculateRideTickets(stalls, true);
         }
-        // The profit strategy we use for pay for entry is based around not selling food
-        // ... so that does deny us stall income
+        // The profit strategy we use for pay for entry is based around not selling food to make guests tired and leave
+        // ... so assume that denies all stall income
         else if (!ScenarioSettings.payPerRide && strategy == "profit")
         {
             stalls = 0;
@@ -512,7 +582,7 @@ export class DifficultySim
         
         this.activityLog.push(context.formatString("Gained {CURRENCY} from stall income", stalls));
         this.activityLog.push(context.formatString(`Gained {CURRENCY} from ${ScenarioSettings.payPerRide ? "rides" : "entry"}`, parkEntryOrRideTickets));
-
+        this.lastMonthCashDeltaWithoutRideTickets += stalls;
         this.cashAvailable += stalls + parkEntryOrRideTickets;       
     }
 
@@ -559,15 +629,7 @@ export class DifficultySim
     {
         if (this.monthExceededDensityLimit === undefined)
         {
-            let ourDensity = this.softGuestCap / (park.parkSize - ScenarioSettings.numOwnedTilesToBuyable + this.totalLandBought);
-            let maxDensity = getConfigOption("MaxDensity");
-            if (ScenarioSettings.flags.indexOf("difficultGuestGeneration") > -1 && this.softGuestCap > 1000)
-            {
-                let easyPortion = maxDensity * 1000;
-                let hardPortion = (this.softGuestCap - 1000) * (getConfigOption("MaxDensityHardGuestGen"));
-                maxDensity = easyPortion + hardPortion;
-            }
-            if (ourDensity > maxDensity)
+            if (this.buyableLand <= 0 && this.availableLandForBuilding <= 0)
             {
                 this.monthExceededDensityLimit = this.monthsCompleted;
             }
@@ -576,14 +638,15 @@ export class DifficultySim
 
     isViable()
     {
-        let loanAvailable = ScenarioSettings.maxLoan - this.unrepaidLoan
+        let loanAvailable = (ScenarioSettings.maxLoan + ScenarioSettings.initialDebt) - this.unrepaidLoan;
         let realCashAvailable = this.cashAvailable + loanAvailable;
-        if (realCashAvailable < getConfigOption("CashTightness"))
+        if (realCashAvailable < 0)
         {
             this.activityLog.push(context.formatString("Nonviable: available cash = {CURRENCY}", this.cashAvailable));
+            //console.log(context.formatString("Nonviable: available cash = {CURRENCY}", this.cashAvailable));
             return false;
         }
-        else if (this.cashAvailable < getConfigOption("CashTightness"))
+        else if (this.cashAvailable < 0)
         {
             this.activityLog.push(context.formatString("Dipping into loan to stay viable: cash on hand = {CURRENCY}, loan available = {CURRENCY}, together = {CURRENCY}", this.cashAvailable, loanAvailable, realCashAvailable));
         }
@@ -594,10 +657,28 @@ export class DifficultySim
         return true;
     }
 
+    updateObjectiveMetric()
+    {
+        if (ScenarioSettings.objectiveType == "repayLoanAndParkValue")
+        {
+            // -1 * the amount of cash over your loan should sort of work okay
+            this.objectiveMetric = (this.cashAvailable - this.unrepaidLoan) * -1;
+        }
+        else if (ScenarioSettings.objectiveType == "guestsAndRating")
+        {
+            this.objectiveMetric = this.guestsInPark;
+        }
+        else
+        {
+            log(`No objective metric handling for objective type ${ScenarioSettings.objectiveType}`, "Error");
+        }
+    }
+
     // Use the given SpendingStrategy to decide what to do this month
     updateMonth(strategy: SpendingStrategy)
     {
         this.entryTicketsThisMonth = 0;
+        this.lastMonthCashDeltaWithoutRideTickets = 0;
         this.activityLog.push("======================");
         this.activityLog.push(`Begin month: ${months[this.monthsCompleted % 8]} Year ${1 + (Math.floor(this.monthsCompleted / 8))}, strategy = ${strategy}`);
         log(`Begin month ${this.monthsCompleted}`, "IndividualSim");
@@ -610,27 +691,35 @@ export class DifficultySim
 
         this.monthsLeft = this.monthsLeft - 1;
         this.monthsCompleted = this.monthsCompleted + 1;
-
+        // This might be negative, if we are reliant on the loan to prop us up
+        // But really for difficulty purposes we care about how little we "feel" like we have on hand, so pretend the amount we can withdraw doesn't exist
+        this.totalEndMonthCash += this.cashAvailable;
+        this.averageEndMonthCash = this.totalEndMonthCash / this.monthsCompleted;
+        this.updateObjectiveMetric();
         this.checkDensityLimit();
     }
 
-    getRideBuildingOption(): RideBuildingOption
+    getRideBuildingOption(strategy: SpendingStrategy): RideBuildingOption
     {
         let naturalGuestGeneration = this.getNaturalGuestGeneration();
         let idealSoftGuestCapIncrease = Math.max(0, (this.guestsInPark + naturalGuestGeneration.maximum) - this.softGuestCap);
         //this.activityLog.push(`guests in park ${this.guestsInPark} + max gen ${naturalGuestGeneration.maximum} = ${this.guestsInPark + naturalGuestGeneration.maximum} - sgc ${this.softGuestCap} -> ${idealSoftGuestCapIncrease}`);
         let costOfMaximisingSoftGuestCap = this.getCostOfAdditionalSoftGuestCap(idealSoftGuestCapIncrease);
+
+        // To emphasise the long term reward of this option, we sort of have to consider the value we get 
+        let longTermSGCValue = this.getLongTermValuePerGuest(strategy);
+
         if (costOfMaximisingSoftGuestCap.totalCost > this.cashAvailable)
         {
             // Can't afford the whole thing any more, but maybe we can stil get a bit less?
-            costOfMaximisingSoftGuestCap = this.getAmountOfSoftGuestCapThatCanBeAfforded(this.cashAvailable);
+            costOfMaximisingSoftGuestCap = this.getMaxSoftGuestCapWithinBudget(this.cashAvailable);
             // This method will be pessimistic when crossing the 1000 guest barrier in harder guest generation
             let proportionOfMaximum = costOfMaximisingSoftGuestCap.quantity/idealSoftGuestCapIncrease;
             return {
                 type: "building",
-                softGuestCapIncrease: Math.floor(idealSoftGuestCapIncrease * proportionOfMaximum),
+                extraGuests: Math.floor(idealSoftGuestCapIncrease * proportionOfMaximum),
                 cost: costOfMaximisingSoftGuestCap.totalCost,
-                actionIncome: Math.floor((naturalGuestGeneration.maximum - naturalGuestGeneration.current) * ScenarioSettings.guestInitialCash * proportionOfMaximum),
+                actionIncome: Math.floor((naturalGuestGeneration.maximum - naturalGuestGeneration.current) * longTermSGCValue * proportionOfMaximum),
                 landTiles: costOfMaximisingSoftGuestCap.landTiles,
                 rideCost: costOfMaximisingSoftGuestCap.rideCost,
                 landCost: costOfMaximisingSoftGuestCap.landCost,
@@ -639,9 +728,9 @@ export class DifficultySim
 
         return ({
             type:"building",
-            softGuestCapIncrease: idealSoftGuestCapIncrease,
+            extraGuests: idealSoftGuestCapIncrease,
             cost: costOfMaximisingSoftGuestCap.totalCost,
-            actionIncome: (naturalGuestGeneration.maximum - naturalGuestGeneration.current) * ScenarioSettings.guestInitialCash,
+            actionIncome: (naturalGuestGeneration.maximum - naturalGuestGeneration.current) * longTermSGCValue,
             landTiles: costOfMaximisingSoftGuestCap.landTiles,
             rideCost: costOfMaximisingSoftGuestCap.rideCost,
             landCost: costOfMaximisingSoftGuestCap.landCost,
@@ -700,19 +789,19 @@ export class DifficultySim
         let iterations = 0;
         do
         {
-            log(`Start outer spending loop`, "IndividualSim");
             purchasedItem = false;
             iterations++;
-            let currentRideBuildingOption = this.getRideBuildingOption();
+            let currentRideBuildingOption = this.getRideBuildingOption(strategy);
             let currentSpendingOptions = [...fixedSpendingOptions];
             // Pushing non-options risks them getting ranked and chosen for no gain
             // If our density limit is exceeded we aren't allowed to build anything either
-            if (currentRideBuildingOption.cost > 0 && currentRideBuildingOption.softGuestCapIncrease > 0 && this.monthExceededDensityLimit === undefined)
+            //this.activityLog.push(context.formatString(`Ride building option costs: {CURRENCY}, gives ${currentRideBuildingOption.extraGuests} guests; option's gain/cost: ${getGainPerCost(currentRideBuildingOption, strategy)}`, currentRideBuildingOption.cost));
+            if (currentRideBuildingOption.cost > 0 && currentRideBuildingOption.extraGuests > 0 && this.monthExceededDensityLimit === undefined)
             {
                 //this.activityLog.push(context.formatString(`Ride building option: ${currentRideBuildingOption.softGuestCapIncrease} SGC for {CURRENCY}`, currentRideBuildingOption.cost));
                 currentSpendingOptions.push(currentRideBuildingOption);
+                
             }
-            log(`Sort spending options`, "IndividualSim");
             let sortedSpendingOptions = sortSpendingOptions(currentSpendingOptions, strategy);
             for (let index in sortedSpendingOptions)
             {
@@ -730,7 +819,7 @@ export class DifficultySim
                 if (this.cashAvailable >= opt.cost)
                 {
                     log(`Buy spending option type ${opt.type}`, "IndividualSim");
-                    this.activityLog.push(context.formatString("Cash available: {CURRENCY}", this.cashAvailable));
+                    //this.activityLog.push(context.formatString(`Cash available: {CURRENCY}, this option's gain/cost: ${getGainPerCost(opt, strategy)}`, this.cashAvailable));
                     if (opt.type === "building")
                     {
                         let tilesToBuy = Math.min(this.buyableLand, Math.max(0, -1 * (this.availableLandForBuilding - opt.landTiles)));
@@ -743,24 +832,26 @@ export class DifficultySim
                             //console.log(`having to buy land: total bought ${this.totalLandBought}, this time it cost ${opt.landCost}, rides cost ${opt.rideCost}, full cost ${opt.cost}`);
                         }
                         
-                        this.softGuestCap += opt.softGuestCapIncrease;
-                        this.activityLog.push(context.formatString(`Spent {CURRENCY} on building rides and {CURRENCY} buying land to fit them (${this.availableLandForBuilding} land left). SGC increased by ${opt.softGuestCapIncrease} to ${this.softGuestCap}`, opt.rideCost, opt.landCost));
+                        this.softGuestCap += opt.extraGuests;
+                        this.activityLog.push(context.formatString(`Spent {CURRENCY} on building rides and {CURRENCY} buying land to fit them (${this.availableLandForBuilding} land left). SGC increased by ${opt.extraGuests} to ${this.softGuestCap}`, opt.rideCost, opt.landCost));
                         this.cashAvailable -= opt.cost;
+                        this.lastMonthCashDeltaWithoutRideTickets -= opt.cost;
                     }
                     else if (opt.type === "advertising")
                     {
-                        let carriedCash = ScenarioSettings.guestInitialCash;
+                        let parkEntryFeeOverride = undefined;
                         if (opt.campaign === "freeEntry")
                         {
-                            carriedCash = 0;
+                            parkEntryFeeOverride = 0;
                         }
                         if (opt.campaign === "halfPriceEntry")
                         {
-                            carriedCash /= 2;
+                            parkEntryFeeOverride = getGuestMinimumInitialCash() / 2;
                         }
-                        this.addGuests(opt.extraGuests, carriedCash);
-                        this.activityLog.push(`Spent ${opt.cost} on advertising: ${opt.campaign}, guests now ${this.guestsInPark}`);
+                        this.addGuests(opt.extraGuests, parkEntryFeeOverride);
                         this.cashAvailable -= opt.cost;
+                        this.lastMonthCashDeltaWithoutRideTickets -= opt.cost;
+                        this.activityLog.push(context.formatString(`Spent {CURRENCY} on advertising: ${opt.campaign}, guests now ${this.guestsInPark}, {CURRENCY} left`, opt.cost, this.cashAvailable));
                     }
                     else if (opt.type === "repayloan")
                     {
@@ -773,7 +864,7 @@ export class DifficultySim
                         // opt.cost is negative for this option
                         this.cashAvailable -= opt.cost;
                         this.unrepaidLoan -= opt.cost;
-                        this.activityLog.push(context.formatString("Increased loan by {CURRENCY}, total loan is now {CURRENCY}", -1*opt.cost, this.unrepaidLoan));
+                        this.activityLog.push(context.formatString("Increased loan by {CURRENCY}, total loan is now {CURRENCY}, cash on hand is {CURRENCY}", -1*opt.cost, this.unrepaidLoan, this.cashAvailable));
                     }
                     purchasedItem = true;
                     if (opt.type !== "building")
@@ -783,7 +874,6 @@ export class DifficultySim
                     break;
                 }
             }
-            log(`Finished inner loop, bought something=${purchasedItem}`, "IndividualSim");
         } while (purchasedItem && iterations < 20);
         if (iterations == 20)
         {
@@ -800,7 +890,21 @@ export class DifficultySim
     handleGuestTurnover(strategy: SpendingStrategy, cashMachineAvailable: boolean)
     {
         let guestTurnover = getConfigOption("SimGuestTurnoverMinimum");
+        let guestTurnoverFromSGC = 0;
         let guestTurnoverFlat = 0;
+
+        // The sim sometimes ends up building a tiny park and letting it run for ages
+        // while gaining tons of guests from 1/4 natural guest generation, and going way beyond the soft guest cap
+        // in practice this can't really feasibly be done because of the huge amount of unhappiness generated from overcrowding
+        // and the increasing difficulty of managing that
+        // It's also not very interesting gameplay.
+        let timesExceeded = Math.max(0, (this.guestsInPark - this.softGuestCap)/Math.max(100, this.softGuestCap));
+        if (timesExceeded > 0)
+        {
+            let guestsWeWantToRemove = this.softGuestCap/10 * timesExceeded;
+            this.activityLog.push(`Turnover from exceeding soft guest cap by ${timesExceeded}x: ${guestsWeWantToRemove} guests`);
+            guestTurnoverFromSGC = 100 * (guestsWeWantToRemove/this.guestsInPark)
+        }
 
         if (ScenarioSettings.payPerRide)
         {
@@ -814,7 +918,7 @@ export class DifficultySim
                 this.activityLog.push("Turnover strategy: minimum (no cash machine available)");
                 let brokeGuests = this.guestCountsByCash[0] || 0;
                 // Even when out of cash it takes them a while to give up and go home
-                guestTurnoverFlat = Math.round((getConfigOption("SimGuestBrokeLeaveProbability") * brokeGuests)/100);
+                guestTurnoverFlat += Math.round((getConfigOption("SimGuestBrokeLeaveProbability") * brokeGuests)/100);
                 this.activityLog.push(`Turnover: ejected ${guestTurnoverFlat} broke guests`);
                 this.guestCountsByCash[0] = Math.max(0, (this.guestCountsByCash[0] || 0) - guestTurnoverFlat);
             }
@@ -834,7 +938,7 @@ export class DifficultySim
         }
 
         this.guestsInPark -= guestTurnoverFlat;
-        let turnoverRate = guestTurnover/100;
+        let turnoverRate = (guestTurnover+guestTurnoverFromSGC)/100;
         guestTurnoverFlat = Math.round(this.guestsInPark*turnoverRate);
         // Assuming general turnover applies to all guest cash counts equally
         // If the cash machine is available this is pointless

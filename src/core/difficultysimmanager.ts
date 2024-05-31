@@ -2,17 +2,17 @@ import { DifficultySim, initialStateDifficultySim } from "./difficultysim";
 import { MapAnalysis } from "./maptiles";
 import { FinancialPressure, ScenarioSettings, FinancialPressureParams, FinancialPressureSettings } from "./scenariosettings";
 import { getConfigOption } from "./sharedstorage";
-import { log } from "../util/logging";
+import { ActiveLogTypes, log } from "../util/logging";
 
 export var FinalActivityLog: string[] = [];
 
 // TODO: setting-ify these
 
 // How many tiles of land the sim needs to be wanting to buy for changing land costs to be worthwhile
-const LandCostMinTilesBoughtForAdjustment = 50;
+const LandCostMinTilesBoughtForAdjustment = 100;
 
 // The number of states we want to try to examine to find the settings closest to what was asked for.
-const FineAdjustTargetNumberStates = 5000;
+//const FineAdjustTargetNumberStates = 5000;
 
 /*
 
@@ -59,21 +59,26 @@ The sim manager uses three classes to try to do this:
 
 // type to handle the various states of simulation intermediate calls
 // This type holds all four of the possible responses, but not every internal function will use all of them
-type SimulationStatusReport = "waiting" | "impossible" | "ok" | "complete";
+export const enum SimulationStatusReport
+{
+    OK=1,
+    WAITING=2,
+    COMPLETE=3,
+    IMPOSSIBLE=4,
+}
 
 // Either the amount of cash left over from this sim run, or undefined if it failed
-type SimulationResult = "impossible" | DifficultySim;
+type SimulationResult = SimulationStatusReport.IMPOSSIBLE | DifficultySim;
 
 // Class that tries to find the optimal month to switch between profit/guest generation for the current ScenarioSettings
 // to get as many guests or profit (objective dependent) as is possible in the scenario's time limit.
 class OptimalStrategyFinder
 {
-    switchMonthResults: Record<number, SimulationResult> = {};
+    private switchMonthResults: Record<number, SimulationResult> = {};
     private incompleteSimulations: Record<number, DifficultySim> = {};
     startPoint = 0;
     trialPoint: undefined | number = undefined;
-
-    switchPointInProgress: undefined | number = undefined;
+    optimalSwitchPoint: undefined | number = undefined;
 
     // How many iterations (simulation month updates) we are allowed to do this call
     // before we should stop and let the main engine loop do its thing
@@ -82,22 +87,36 @@ class OptimalStrategyFinder
 
     
     // Returns a SimulationResult if the simulation is done, false if more work is needed
-    getResult(switchPoint: number): SimulationResult | "waiting"
+    getResult(switchPoint: number): SimulationResult | SimulationStatusReport.WAITING
     {
-        if (this.runASimulation(switchPoint) === "complete")
+        if (this.runASimulation(switchPoint) === SimulationStatusReport.COMPLETE)
         {
             return this.switchMonthResults[switchPoint];
         }
-        return "waiting";
+        return SimulationStatusReport.WAITING;
+    }
+
+    getOptimalResult(): SimulationResult | SimulationStatusReport.IMPOSSIBLE | SimulationStatusReport.WAITING
+    {
+        let response = this.findOptimalStrategySwitchPoint();
+        if (response === SimulationStatusReport.COMPLETE)
+        {
+            if (this.optimalSwitchPoint !== undefined)
+            {
+                return this.switchMonthResults[this.optimalSwitchPoint];
+            }
+            return SimulationStatusReport.IMPOSSIBLE;
+        }
+        return response;
     }
 
     
     // Return: true if the simulation completed, false if it needs more work
-    runASimulation(switchPoint: number): "complete" | "waiting"
+    runASimulation(switchPoint: number): SimulationStatusReport.COMPLETE | SimulationStatusReport.WAITING
     {
         if (this.switchMonthResults[switchPoint] != undefined)
         {
-            return "complete";
+            return SimulationStatusReport.COMPLETE;
         }
         let sim: DifficultySim;
         if (this.incompleteSimulations[switchPoint] != undefined)
@@ -111,29 +130,43 @@ class OptimalStrategyFinder
         }
         let monthsToDo = Math.min(this.iterationsLeft, sim.monthsLeft);
         this.iterationsLeft -= monthsToDo;
+        let simIsViable = true;
         while (monthsToDo > 0)
         {
             sim.updateMonth(sim.monthsCompleted < switchPoint ? "profit" : "guestcount");
             if (!sim.isViable())
             {
+                simIsViable = false;
                 break;
             }
             monthsToDo--;
         }
-        if (!sim.isViable())
+        if (simIsViable && sim.monthsLeft > 0)
         {
-            //for (const k in sim.activityLog) {console.log(sim.activityLog[k]); }
-            this.switchMonthResults[switchPoint] = "impossible";
-            delete this.incompleteSimulations[switchPoint];
-            return "complete";
+            return SimulationStatusReport.WAITING;
         }
-        if (sim.monthsLeft <= 0)
+        // This means that it didn't actually finish repaying its loan!
+        if (sim.monthsLeft == 0 && ScenarioSettings.objectiveType == "repayLoanAndParkValue" && sim.objectiveMetric > 0)
+        {
+            simIsViable = false;
+        }
+        if (!simIsViable)
+        {
+            this.switchMonthResults[switchPoint] = SimulationStatusReport.IMPOSSIBLE;
+        }
+        else
         {
             this.switchMonthResults[switchPoint] = sim;
-            delete this.incompleteSimulations[switchPoint];
-            return "complete";
+            if (ActiveLogTypes["AllSuccessfulSims"])
+            {
+                for (const k in sim.activityLog)
+                {
+                    log(sim.activityLog[k], "AllSuccessfulSims");
+                }
+            }
         }
-        return "waiting";
+        delete this.incompleteSimulations[switchPoint];
+        return SimulationStatusReport.COMPLETE;        
     }
 
     
@@ -141,22 +174,73 @@ class OptimalStrategyFinder
     // number - the first month to switch strategy from profit to guest generation
     // undefined - scenario is not completable
     // false - more work is needed
-    findOptimalStrategySwitchPoint(): number | "impossible" | "waiting"
+    findOptimalStrategySwitchPoint(): SimulationStatusReport.COMPLETE | SimulationStatusReport.IMPOSSIBLE | SimulationStatusReport.WAITING
     {
+        if (this.optimalSwitchPoint !== undefined)
+        {
+            return SimulationStatusReport.COMPLETE
+        }
+
         // this.trialPoint === undefined is not possible in this function
         let trialPoint = this.trialPoint as number;
+        // Repay loan is a pure profit endeavour, there is really no point in grinding through these
+        if (ScenarioSettings.objectiveType == "repayLoanAndParkValue")
+        {
+            let result = this.getResult(ScenarioSettings.scenarioLength*8);
+            if (result == SimulationStatusReport.IMPOSSIBLE || result == SimulationStatusReport.WAITING)
+            {
+                return result;
+            }
+            this.optimalSwitchPoint = ScenarioSettings.scenarioLength*8;
+            return SimulationStatusReport.COMPLETE;
+        }
+        
         // We assume the optimal state is when both switching one before and one after are both either nonviable or give less of whatever quantity we care about.
         while (true)
         {
             log("findOptimalStrategySwitchPoint starts", "SimManagerIterations");
             this.trialPoint = trialPoint;
             let thisPoint = this.getResult(trialPoint);
-            //console.log(`find optimal switch point trying: ${trialPoint}, state = ${thisPoint}`);
-            if (thisPoint === "waiting") // waiting on sim to finish
+            
+            if (thisPoint === SimulationStatusReport.WAITING) // waiting on sim to finish
             {
-                return "waiting";
+                return SimulationStatusReport.WAITING;
             }
-            if (thisPoint === "impossible")
+            else if (thisPoint !== SimulationStatusReport.IMPOSSIBLE)
+            {
+                log(`find optimal switch point trying: ${trialPoint}, state = ${thisPoint.objectiveMetric}`, "StrategySwitchPoint");
+            }
+
+            // This goes through all the possibilities and finds the best
+            /*
+            // Try to find a point that is viable
+            trialPoint--;
+            // Went past the start? go to the end
+            if (trialPoint < 0)
+            {
+                trialPoint = ScenarioSettings.scenarioLength * 8;
+            }
+            // Back to where we started? This scenario is not completable
+            if (trialPoint == this.startPoint)
+            {
+                let viableValues: Record<number, number> = {};
+                for (const k in this.switchMonthResults)
+                {
+                    let val = this.switchMonthResults[k];
+                    if (val !== SimulationStatusReport.IMPOSSIBLE)
+                    {
+                        viableValues[val.objectiveMetric] = Number(k);
+                    }
+                }
+                let numberKeys = Object.keys(viableValues) as unknown[] as number[];
+                let bestMetric = Math.max(...numberKeys);
+                this.optimalSwitchPoint = 5;
+                return SimulationStatusReport.COMPLETE;
+            }
+            */
+
+            // This assumes that there will be exactly one turning point and we can stop once we find it
+            if (thisPoint === SimulationStatusReport.IMPOSSIBLE)
             {
                 // Try to find a point that is viable
                 trialPoint--;
@@ -169,51 +253,65 @@ class OptimalStrategyFinder
                 if (trialPoint == this.startPoint)
                 {
                     this.trialPoint = undefined;
-                    return "impossible";
+                    return SimulationStatusReport.IMPOSSIBLE;
                 }
                 continue;
             }
             else
             {
+                let prevPoint: SimulationResult | SimulationStatusReport.WAITING = SimulationStatusReport.IMPOSSIBLE;
+                let nextPoint: SimulationResult | SimulationStatusReport.WAITING = SimulationStatusReport.IMPOSSIBLE;
+                // Map objectiveMetric: switchpoint
+                let viableValues: Record<number, number> = {};
+                viableValues[thisPoint.objectiveMetric] = trialPoint;
+
                 if (trialPoint < ScenarioSettings.scenarioLength * 8)
                 {
-                    let nextPoint = this.getResult(trialPoint + 1);
-                    //console.log(`nextpoint state = ${nextPoint}`);
-                    if (nextPoint === "waiting") // waiting on sim to finish
+                    nextPoint = this.getResult(trialPoint + 1);
+                    if (nextPoint === SimulationStatusReport.WAITING) // waiting on sim to finish
                     {
-                        return "waiting";
+                        return SimulationStatusReport.WAITING;
                     }
-                    if (nextPoint !== "impossible" && nextPoint > thisPoint)
+                    else if (nextPoint !== SimulationStatusReport.IMPOSSIBLE)
                     {
-                        //console.log(`switch point later: ${trialPoint+1} is better: ${nextPoint} vs ${thisPoint}`);
-                        trialPoint++;
-                        continue;
+                        log(`nextpoint state = ${nextPoint.objectiveMetric}`, "StrategySwitchPoint");
+                        viableValues[nextPoint.objectiveMetric] = trialPoint + 1;
                     }
+                    
                 }
                 if (trialPoint > 0)
                 {
-                    let prevPoint = this.getResult(trialPoint - 1);
-                    //console.log(`prevpoint state = ${prevPoint}`);
-                    if (prevPoint === "waiting") // waiting on sim to finish
+                    prevPoint = this.getResult(trialPoint - 1);
+                    
+                    if (prevPoint === SimulationStatusReport.WAITING) // waiting on sim to finish
                     {
-                        return "waiting";
+                        return SimulationStatusReport.WAITING;
                     }
-                    if (prevPoint !== "impossible" && prevPoint > thisPoint)
+                    else if (prevPoint !== SimulationStatusReport.IMPOSSIBLE)
                     {
-                        //console.log(`switch point earlier: ${trialPoint-1} is better: ${prevPoint} vs ${thisPoint}`);
-                        trialPoint--;
-                        continue;
+                        log(`prevpoint state = ${prevPoint.objectiveMetric}`, "StrategySwitchPoint");
+                        viableValues[prevPoint.objectiveMetric] = trialPoint - 1;
                     }
                 }
+                let numberKeys = Object.keys(viableValues) as unknown[] as number[];
+                let bestMetric = Math.max(...numberKeys);
+                if (bestMetric !== thisPoint.objectiveMetric)
+                {
+                    let newSwitch = viableValues[bestMetric];
+                    log(`Best switch point = ${newSwitch}: ${bestMetric} vs ${thisPoint.objectiveMetric}`, "StrategySwitchPoint");
+                    trialPoint = newSwitch;
+                    continue;
+                }
             }
-            return trialPoint;
+            this.optimalSwitchPoint = trialPoint;
+            return SimulationStatusReport.COMPLETE;
         }
     }
 
 
 }
 
-
+/*
 class FineAdjustSettingsContainer
 {
     settingsBeingTested: FinancialPressureSettings = {};
@@ -249,7 +347,7 @@ class FineAdjustSettingsContainer
     // Return true if this is a new best, otherwise false.
     processSettingsResult(result: SimulationResult)
     {
-        if (result === "impossible")
+        if (result === SimulationStatusReport.IMPOSSIBLE)
         {
             console.log(`Impossible result: ${JSON.stringify(this.settingsBeingTested)}`);
             // If the sim wasn't possible to complete, we can remove everything more difficult than it
@@ -386,8 +484,9 @@ class FineAdjustSettingsContainer
         }
     }
 }
+*/
 
-type DifficultyAdjusterModes = "coarse" | "fine" | "parkratingobjective";
+type DifficultyAdjusterModes = "coarse" | "fine";
 
 export class DifficultyAdjuster
 {
@@ -396,18 +495,26 @@ export class DifficultyAdjuster
 
     private lastDifficultyAdjustment = 10;
     private lastFinancialPressure: FinancialPressure | undefined = undefined;
-    private financialPressuresTried : FinancialPressure[] = [];
+    private unadjustableFinancialPressures : FinancialPressure[] = [];
+    private adjustmentStep = 128;
 
     canAlterStartingCash = false;
 
     strategyFinder = new OptimalStrategyFinder;
 
     mode: DifficultyAdjusterModes = "coarse";
-    private fineAdjustSettings: FineAdjustSettingsContainer | undefined = undefined;
+    //private fineAdjustSettings: FineAdjustSettingsContainer | undefined = undefined;
     finalSettings: FinancialPressureSettings = {};
     
-
     // Coarse difficulty adjustment:
+    // The fine adjustment would give some result, but picking randomly and doing small adjustments tends to increase all the pressures evenly.
+    // I think it's quite nice to have them a bit lopsided, as it introduces a bit more variety
+    //  1) Pick (large) number of steps
+    //  2) Try a factor in turn, if it fails then revert, if it succeeds then keep it
+    //  3) Pick a different factor (even if 2) succeeded) and repeat until all make it too difficult or are at max value
+    //  4) Half number of steps, repeat until step count is small enough
+
+    // Fine difficulty adjustment:
     // First, find some settings where the scenario can be completed, by making whatever pressures we generated lighter
     // Then try to find some rough settings that are about okay by:
         // 1) Pick factor to adjust
@@ -415,96 +522,96 @@ export class DifficultyAdjuster
         // 3) If too far, do less and less until it gets there or we conclude that this factor is already at its limit
         // 4) If not far enough, go back to 1)
 
+    // Turns out that these are similar enough that they can be very easily bundled together in the same function
+
     // Return complete if the settings are good, or ok if we want to do more with them
     // or impossible if we can't get anything that works 
-    coarseAdjustProcessSimResult(result: SimulationResult): SimulationStatusReport
+    handleSimResult(result: SimulationResult): SimulationStatusReport
     {
-        let undo = true;
-        if (result !== "impossible")
+        let resultIsOkay = result !== SimulationStatusReport.IMPOSSIBLE;
+        if (result !== SimulationStatusReport.IMPOSSIBLE)
         {
-            undo = false;
-            console.log("handleNewSimulationResult: lowestcash=" + result.lowestCashAvailable + ", tightest=" + this.tightestFinancial + ", tiles of land bought=" + result.totalLandBought);
-            // Deliberately take equal results - it stands some chance of finding that force buy land might lead to needing to buy land
-            // even if it makes apparently no difference
-            if (this.tightestFinancial === undefined || result.lowestCashAvailable <= this.tightestFinancial)
+            // If below the desired average cash AND worse than the previous closest, this is also bad
+            let isNewBest = false;
+            if (this.tightestFinancial === undefined)
             {
-                this.tightestFinancial = result.lowestCashAvailable;
+                isNewBest = true;
+            }
+            else
+            {
+                let bestDiff = Math.abs(this.tightestFinancial - getConfigOption("CashTightness"));
+                let thisDiff = Math.abs(result.averageEndMonthCash - getConfigOption("CashTightness"));
+                console.log(`This iteration's difference ${thisDiff} vs best known ${bestDiff} ${thisDiff < bestDiff ? "- NEW BEST" : ""})`);
+                // Debating whether to allow lower - for consistent user difficulty it's probably best not to
+                if (thisDiff < bestDiff && result.averageEndMonthCash >= getConfigOption("CashTightness"))
+                {
+                    isNewBest = true;
+                }
+                else if (result.averageEndMonthCash < getConfigOption("CashTightness"))
+                {
+                    resultIsOkay = false;
+                }
+            }
+            if (isNewBest)
+            {
+                this.tightestFinancial = result.averageEndMonthCash;
                 this.bestSimulation = result;
-                this.canAlterStartingCash = false;
-                // We succeeded at getting nearer, so clear the memory of things we tried
-                this.financialPressuresTried = [];
-            }
-            else if (this.lastFinancialPressure !== undefined)
-            {
-                this.financialPressuresTried.push(this.lastFinancialPressure);
+                this.finalSettings = ScenarioSettings.getFinancialPressureSettings();
             }
         }
-        if (this.tightestFinancial === undefined && result === "impossible")
+        if (resultIsOkay)
         {
-            console.log("handleNewSimulationResult: impossible result with no saved viable sim");
+            console.log("handleSimResult: increase was okay");
+            this.unadjustableFinancialPressures = [];
+            if (this.mode == "fine")
+            {
+                this.adjustmentStep = 16;
+            }
+        }
+
+        if (this.tightestFinancial === undefined && !resultIsOkay)
+        {
+            console.log("handleSimResult: impossible result with no saved viable sim");
             this.canAlterStartingCash = true;
-            // We have no saved result that works
-            // and what we tried also doesn't work
-            // so we can't undo anything and just have to start making stuff easier until something is viable
-            if (this.adjustSettingsForDifficulty(-10) == "ok")
+            // Try to make things easier until we get some state that works
+            if (this.adjustSettingsForDifficulty(-10, undefined) == SimulationStatusReport.OK)
             {
                 this.canAlterStartingCash = false;
-                return "ok";
-            }
+                return SimulationStatusReport.OK;
+            }   
             // Can't redure more pressure? This scenario is unplayable
-            return "impossible";
+            return SimulationStatusReport.IMPOSSIBLE;
         }
-        if (undo && this.lastFinancialPressure !== undefined)
+
+        if (!resultIsOkay && this.lastFinancialPressure !== undefined)
         {
             ScenarioSettings.adjustSettingsForFinancialPressure(this.lastFinancialPressure, -1*this.lastDifficultyAdjustment, "add");
-        }
-        if (result !== "impossible")
-        {
-            // Pick a different pressure and try to get closer to the target
-            this.lastFinancialPressure = undefined;
-            this.lastDifficultyAdjustment = 10;
-            if (this.adjustSettingsForDifficulty(160) === "ok")
-            {
-                return "ok";
-            }
-            // Can't apply more pressure? Must be as good as this is going to get
-            return "complete";
-        }
-        
-        // We get here if result === "impossible" and we have some result that was viable before
-        // Which means the last change pushed it too far and now it's nonviable
-        console.log("handleNewSimulationResult: crossed to impossible");
-        let newAdjust = 0;
-        let lastSteps = 0;
-        if (this.lastFinancialPressure !== undefined)
-        {
-            let lastSteps = Math.floor(this.lastDifficultyAdjustment/FinancialPressureParams[this.lastFinancialPressure].step)
-            if (lastSteps > 1)
-            {
-                newAdjust = Math.floor(lastSteps/2);
-            }
+            console.log(`handleSimResult: increase went too far, undoing: ${this.lastFinancialPressure} = ${ScenarioSettings.getValueFromFinancialPressure(this.lastFinancialPressure)}`);
+            this.unadjustableFinancialPressures.push(this.lastFinancialPressure);
         }
 
-        console.log(`last adjust was ${lastSteps}, this time we try ${newAdjust}`);
-
-        if (newAdjust == 0 || newAdjust == lastSteps)
+        while (true)
         {
-            // should always be defined, but...
-            if (this.lastFinancialPressure !== undefined)
+            if (this.adjustSettingsForDifficulty(this.adjustmentStep, undefined) === SimulationStatusReport.OK)
             {
-                this.financialPressuresTried.push(this.lastFinancialPressure);
+                return SimulationStatusReport.OK;
             }
-            this.lastDifficultyAdjustment = 10;
-            this.lastFinancialPressure = undefined;
-            newAdjust = 10;
+
+            if (this.adjustmentStep > 64 && this.mode == "coarse")
+            {
+                this.adjustmentStep = Math.max(1, Math.floor(this.adjustmentStep/2));
+                this.unadjustableFinancialPressures = [];
+            }
+            else if (this.adjustmentStep > 1 && this.mode == "fine")
+            {
+                this.adjustmentStep = Math.max(1, Math.floor(this.adjustmentStep/2));
+                this.unadjustableFinancialPressures = [];
+            }
+            else
+            {
+                return SimulationStatusReport.COMPLETE;
+            }
         }
-        
-        if (this.adjustSettingsForDifficulty(newAdjust) == "ok")
-        {
-            return "ok";
-        }
-        // No way to add more pressure without making it nonviable? We're done
-        return "complete";
     }
 
     // Return the actual amount of steps that a given pressure can be modified by, if any.
@@ -513,7 +620,7 @@ export class DifficultyAdjuster
     {
         // If we've already tried and eliminated this pressure then we've exhausted its possibilities and so there's no point in
         // doing anything else with it right now
-        if (this.financialPressuresTried.indexOf(pressure) > -1)
+        if (this.unadjustableFinancialPressures.indexOf(pressure) > -1)
         {
             return 0;
         }
@@ -539,7 +646,7 @@ export class DifficultyAdjuster
 
         let current = ScenarioSettings.getValueFromFinancialPressure(pressure);
         let proposed = current + amount * params.step;
-        //console.log(`current ${current}, proposed ${proposed} (${amount} steps of ${params.step}), allowed=${params.min}-${params.max}`);
+        //console.log(`Consider adjusting pressure ${pressure}: current ${current}, proposed ${proposed} (${amount} steps of ${params.step}), allowed=${params.min}-${params.max}`);
         if (params.max !== undefined && proposed > params.max)
         {
             let maxDelta = params.max - current;
@@ -559,20 +666,18 @@ export class DifficultyAdjuster
 
 
     // Return: true if we managed to adjust settings, false if we can't
-    adjustSettingsForDifficulty(amount: number): "ok" | "impossible"
+    adjustSettingsForDifficulty(amount: number, financialPressure: FinancialPressure | undefined): SimulationStatusReport.OK | SimulationStatusReport.IMPOSSIBLE
     {
         this.lastDifficultyAdjustment = amount;
-        let financialPressure = this.lastFinancialPressure;
         if (financialPressure === undefined)
         {
             let possiblePressures: FinancialPressure[] = [];
             for (let pressureKey in ScenarioSettings.financialPressures)
             {
                 let pressure = ScenarioSettings.financialPressures[pressureKey];
-                if (this.financialPressuresTried.indexOf(pressure) <= -1 && this.canAdjustPressure(pressure, amount) != 0)
+                if (this.unadjustableFinancialPressures.indexOf(pressure) <= -1 && this.canAdjustPressure(pressure, amount) != 0)
                 {
                     possiblePressures.push(pressure);
-                    console.log("add possible pressure: " + pressure);
                 }
             }
             // If desperate we allow increasing initial cash
@@ -582,87 +687,23 @@ export class DifficultyAdjuster
             }
             if (possiblePressures.length == 0)
             {
-                return "impossible";
+                console.log("No possible pressures, can't increase further");
+                return SimulationStatusReport.IMPOSSIBLE;
             }
             financialPressure = possiblePressures[context.getRandom(0, possiblePressures.length)];
         }
         let actualAmount = this.canAdjustPressure(financialPressure, amount) * FinancialPressureParams[financialPressure].step;
         if (actualAmount == 0)
         {
-            return "impossible";
+            return SimulationStatusReport.IMPOSSIBLE;
         }
         ScenarioSettings.adjustSettingsForFinancialPressure(financialPressure, actualAmount, "add");
-        console.log("Adjust pressure " + financialPressure + " by " + actualAmount);
+        console.log("Adjust pressure " + financialPressure + " by " + actualAmount + ", now " + ScenarioSettings.getValueFromFinancialPressure(financialPressure));
         this.lastDifficultyAdjustment = actualAmount;
         this.lastFinancialPressure = financialPressure;
-        return "ok";
+        return SimulationStatusReport.OK;
     }
-
-    // Return complete if the settings are good, or ok if we want keep looking for more
-    fineAdjustProcessSimResult(result:SimulationResult): SimulationStatusReport
-    {
-        if (this.fineAdjustSettings !== undefined)
-        {
-            if (this.fineAdjustSettings.processSettingsResult(result) && this.fineAdjustSettings.bestValue !== undefined)
-            {
-                if (result !== "impossible")
-                {
-                    this.bestSimulation = result;
-                    let thisDiff = Math.abs(this.fineAdjustSettings.bestValue - getConfigOption("CashTightness"));
-                    if (thisDiff < 10000)
-                    {
-                        console.log(`Request close to requirements! Diff=${thisDiff}`);
-                        return "complete";
-                    }
-                }
-            }
-            let newSettings = this.fineAdjustSettings.getRandomUntestedSettings();
-            // Take the best result if there is nothing left
-            if (Object.keys(newSettings).length == 0)
-            {
-                if (this.fineAdjustSettings.bestSettings !== undefined)
-                {
-                    ScenarioSettings.loadFinancialPressureSettings(this.fineAdjustSettings.bestSettings);
-                }
-                console.log(`Out of possible conditions to check, best = ${this.fineAdjustSettings.bestValue} with conditions ${JSON.stringify(this.fineAdjustSettings.bestSettings)}`);
-                return "complete";
-            }
-            ScenarioSettings.loadFinancialPressureSettings(newSettings);
-            return "ok";
-        }
-        
-        return "complete";
-    },
-
-    repayLoanProcessSimResult(result:SimulationResult): SimulationStatusReport
-    {
-        // This is hopefully pretty simple:
-        // 1) Set starting debt equal to the amount of cash the sim has at the end
-        // 2) Adjust loan interest until it's completable again
-        // 3) Repeat and pray that it converges on some nice value
-
-        // If this doesn't work or it ruins the financial tightness, throw it into the fine adjust (eg add leftover loan to tightness values for this obj type)
-
-        // Make a git commit and experiment with using average end of month cash instead of minimum
-        
-    }
-
-    handleSimResult(result: number | "impossible")
-    {
-        let arg: SimulationResult;
-        if (typeof result === "number")
-        {
-            arg = this.strategyFinder.switchMonthResults[result];
-        }
-        else
-        {
-            arg = result;
-        }
-        if (this.mode == "coarse") { return this.coarseAdjustProcessSimResult(arg); }
-        else if (this.mode == "fine") { return  this.fineAdjustProcessSimResult(arg); }
-        else { this.mode == "parkratingobjective"} { return this.repayLoanProcessSimResult(arg); }
-    }
-
+ 
     update(): SimulationStatusReport
     {   
         this.strategyFinder.iterationsLeft = getConfigOption("SimMonthsPerTick");
@@ -679,29 +720,27 @@ export class DifficultyAdjuster
                 // For the sake of an arbitrary start point, how about half way through the scenario
                 this.strategyFinder.startPoint = Math.floor(8*ScenarioSettings.scenarioLength/2);
                 this.strategyFinder.trialPoint = this.strategyFinder.startPoint;  
-            }
-            let result = this.strategyFinder.findOptimalStrategySwitchPoint();
-            if (result === "waiting") // more calls needed
+            }            
+            let result = this.strategyFinder.getOptimalResult();
+            if (result === SimulationStatusReport.WAITING) // more calls needed
             {
-                return "waiting";
+                return result;
             }
+
             let handledResult = this.handleSimResult(result);
 
-            if (handledResult === "waiting") // more calls needed
+            if (handledResult === SimulationStatusReport.WAITING || handledResult === SimulationStatusReport.IMPOSSIBLE) // more calls needed or scenario impossible
             {
-                return "waiting";
+                return handledResult;
             }
-            if (handledResult === "impossible") // success not possible
-            {
-                return "impossible";
-            }
-            if (handledResult === "complete")
+            if (handledResult === SimulationStatusReport.COMPLETE)
             {
                 if (this.mode == "coarse")
                 {
                     this.mode = "fine"
-                    this.fineAdjustSettings = new FineAdjustSettingsContainer(getConfigOption("CashTightness"), ScenarioSettings);
-                    ScenarioSettings.loadFinancialPressureSettings(this.fineAdjustSettings.getRandomUntestedSettings());
+                    this.unadjustableFinancialPressures = [];
+                    //this.fineAdjustSettings = new FineAdjustSettingsContainer(getConfigOption("CashTightness"), ScenarioSettings);
+                    //ScenarioSettings.loadFinancialPressureSettings(this.fineAdjustSettings.getRandomUntestedSettings());
                 }
                 else
                 {
@@ -711,9 +750,10 @@ export class DifficultyAdjuster
                         {
                             console.log(this.bestSimulation.activityLog[k]);
                         }
+                        console.log(`Best sim average cash on hand: ${this.bestSimulation.averageEndMonthCash}`);
                         // This is the best place to pull anything out of the final simulation that we might want to keep
                         FinalActivityLog = this.bestSimulation.activityLog;
-                        let unownedToOwnedTilesNeeded = this.bestSimulation.totalLandBought - (MapAnalysis.buyableLand + MapAnalysis.buyableRights);
+                        let unownedToOwnedTilesNeeded = this.bestSimulation.totalLandBought - (MapAnalysis.buyableLand + MapAnalysis.buyableRights + ScenarioSettings.numOwnedTilesToBuyable);
                         if (unownedToOwnedTilesNeeded > 0)
                         {
                             ScenarioSettings.numUnownedTilesToPurchasable = unownedToOwnedTilesNeeded;
@@ -721,6 +761,8 @@ export class DifficultyAdjuster
                         if (getConfigOption("ShrinkSpace"))
                         {
                             let excessTiles = (park.parkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights) - this.bestSimulation.totalLandUsage;
+                            console.log(`Initial state contains ${park.parkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights} playable tiles`);
+                            console.log(`Sim apparently uses ${this.bestSimulation.totalLandUsage}, so ${excessTiles} need removing`)
                             if (excessTiles > 0)
                             {
                                 ScenarioSettings.numOwnableTilesToMakeUnbuyable = Math.floor(excessTiles);
@@ -732,15 +774,14 @@ export class DifficultyAdjuster
                         }
                         else if (ScenarioSettings.objectiveType == "repayLoanAndParkValue")
                         {
-
+                            // TODO
                         }
                     }                    
-                    this.finalSettings = this.fineAdjustSettings?.bestSettings ?? {};
-                    return "complete";
+                    return SimulationStatusReport.COMPLETE;
                 }
             }
             
-            if (handledResult === "ok") 
+            if (handledResult === SimulationStatusReport.OK) 
             {
                 this.strategyFinder.trialPoint = undefined;
             }
@@ -752,8 +793,10 @@ export class DifficultyAdjuster
 /*
 Unimplemented:
 
-Assignment of park flags
-Assignment of objective
+Weight the pressures randomly for variance rather than relying on coarse to do it. For repay loan, the initialdebt is going tohave to be high.
+
+UI: rando in progress
+UI: scenario in progress
 
 Financial starts
 Financial pressures
@@ -762,7 +805,7 @@ Umbrella start
 Narrow intensity preferences
 Guest start cash
 Additional forced interest
+Time limits
 
 Objectives window
-Failure condition for repay loan
 */

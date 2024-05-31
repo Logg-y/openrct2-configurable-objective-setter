@@ -21,6 +21,7 @@ const SMALL_SCENERY_FLAG_IS_TREE = 268435456;
 const LandRemovalFeatureAvoidanceDistance = 3;
 const LandRemovalParkEntranceAvoidanceDistance = 15;
 
+
 interface MapAnalysis
 {
     // Number of tiles of buyable land
@@ -73,7 +74,7 @@ var lastY = 0;
 
 function distanceToNearestEntrance(point: CoordsXY, entrances:CoordsXY[])
 {
-    // dist = dx + dy is a bit too "pointy" for my taste
+    // dist = dx + dy makes the avoidance area a bit too "pointy" for my taste
     /*
     let lowest = entrances.reduce<undefined | number>((prior: undefined | number, entrance: CoordsXY) => {
 
@@ -303,7 +304,7 @@ export const MapAnalysis: MapAnalysis =
                     {
                         isTileOwned = !!(element.ownership & OWNERSHIP_OWNED);
                         isTileOwnable = !!(element.ownership & OWNERSHIP_TILE_IS_OWNABLE);
-                        isTilePurchasable = !!(element.ownership & (OWNERSHIP_AVAILABLE + OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE));
+                        isTilePurchasable = !!(element.ownership & (OWNERSHIP_AVAILABLE + OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE)) && !isTileOwned;
                         surfaceHeight= element.baseHeight;
                     }
                     else if (element.type === "track")
@@ -497,6 +498,9 @@ export const MapAnalysis: MapAnalysis =
             return totalConverted;
         }.bind(this);
 
+        // It turns out that some tiles in some scenarios (Forest Frontiers!) have multiple bits set in a way that is nonsensical.
+        // There's a strip of 5 or so tiles that have 160 = OWNERSHIP_OWNED + OWNERSHIP_AVAILABLE and that's a bit confusing
+        // I did have these functions preserve most of the original bitmask, but that seems to cause more problems than it helps
         let squaresLeft = SquaresPerTick;
 
         console.log(`adjustTileOwnershipStates: ${ScenarioSettings.numOwnedTilesToBuyable} owned to buyable, ${ScenarioSettings.numUnownedTilesToPurchasable} unowned to buyable, ${ScenarioSettings.numOwnableTilesToMakeUnbuyable} owned to unbuyable`);
@@ -510,12 +514,12 @@ export const MapAnalysis: MapAnalysis =
                 {
                     if ((element.ownership & OWNERSHIP_OWNED) > 0)
                     {
-                        element.ownership += (OWNERSHIP_AVAILABLE - OWNERSHIP_OWNED);
+                        element.ownership = OWNERSHIP_AVAILABLE;
                         this.parkFenceIsDirty = true;
                     }
                     else if ((element.ownership & OWNERSHIP_CONSTRUCTION_RIGHTS_OWNED) > 0)
                     {
-                        element.ownership += (OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE - OWNERSHIP_CONSTRUCTION_RIGHTS_OWNED);
+                        element.ownership = OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE;
                     }
                     break;
                 }
@@ -554,11 +558,11 @@ export const MapAnalysis: MapAnalysis =
                 {
                     if (hasPath)
                     {
-                        surface.ownership |= OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE;
+                        surface.ownership = OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE;
                     }
                     else
                     {
-                        surface.ownership |= OWNERSHIP_AVAILABLE;
+                        surface.ownership = OWNERSHIP_AVAILABLE;
                     }
                 }
             }, getLowestRecordKeys);
@@ -580,7 +584,8 @@ export const MapAnalysis: MapAnalysis =
                         {
                             this.parkFenceIsDirty = true;
                         }
-                        element.ownership -= (element.ownership & (OWNERSHIP_OWNED + OWNERSHIP_CONSTRUCTION_RIGHTS_OWNED + OWNERSHIP_AVAILABLE + OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE));
+                        // "can't be bought" is apparently just the absence of any of other bits
+                        element.ownership = 0;
                         break;
                     }
                 }
@@ -687,6 +692,18 @@ export const MapAnalysis: MapAnalysis =
             }
             y = 0;
             x++;
+        }
+
+        // Park entrance tiles should not have park fences on
+        // (else a park fence "blocks" your entrance and it looks silly)
+        for (const idx in this.containsParkEntrance)
+        {
+            let coords = this.containsParkEntrance[idx];
+            let tile = getTileSurfaceElement(map.getTile(coords.x, coords.y));
+            if (tile !== undefined)
+            {
+                tile.parkFences = 0;
+            }
         }
 
         

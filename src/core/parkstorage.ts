@@ -81,4 +81,5 @@ export function setParkStorageKey(opt: ParkStorageKey, val: boolean|number|strin
         map = obj;
     }
     map[opt] = val;
+    context.getParkStorage("ParkOptions").set("OptionsMap", map);
 }

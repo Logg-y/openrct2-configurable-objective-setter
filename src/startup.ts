@@ -1,3 +1,5 @@
+import { loadGameplayHooks } from "./core/hooks";
+import { getParkStorageKey } from "./core/parkstorage";
 import { UIMain } from "./core/ui/uimain";
 import { StringTable } from "./util/strings";
 
@@ -13,13 +15,6 @@ function onClickMenuItem(): void
 			//park.postMessage(`fence ${elem.parkFences}`);
 		}
 	}
-	let guests = map.getAllEntities("guest");
-	for (let guestid in guests)
-	{
-		let guest = guests[guestid];
-		guest.maxIntensity = Number(guestid) % 10;
-		guest.minIntensity = Number(guestid) % 10;
-	}
 }
 
 
@@ -33,6 +28,11 @@ export function startup()
 	if (typeof ui !== "undefined")
 	{
 		ui.registerMenuItem(StringTable.PLUGIN_MENU_ITEM, () => onClickMenuItem());
+	}
+	let loadedState = getParkStorageKey("RandomisationState", 0);
+	if (loadedState > 0)
+	{
+		loadGameplayHooks();
 	}
 }
 

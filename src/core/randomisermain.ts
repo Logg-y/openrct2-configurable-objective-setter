@@ -1,6 +1,8 @@
-import { DifficultyAdjuster } from "./difficultysimmanager";
+import { DifficultyAdjuster, SimulationStatusReport } from "./difficultysimmanager";
 import { MapAnalysis } from "./maptiles";
 import { ScenarioSettings } from "./scenariosettings";
+import { loadGameplayHooks } from "./hooks";
+import { setParkStorageKey } from "./parkstorage";
 
 
 // This value can be saved to park storage
@@ -112,11 +114,11 @@ function _tickRandomiser()
     else if (RandomiserState == RandomiserStates.DIFFICULTYSIM_COARSE)
     {
         let response = ActiveDifficultyManager.update();
-        if (response == "complete")
+        if (response == SimulationStatusReport.COMPLETE)
         {
             RandomiserState = RandomiserStates.DIFFICULTYSIM_FINISHED;
         }
-        else if (response == "impossible")
+        else if (response == SimulationStatusReport.IMPOSSIBLE)
         {
             RandomiserState = RandomiserStates.RANDOMISATION_FAILED;
         }
@@ -157,16 +159,16 @@ function _tickRandomiser()
     else if (RandomiserState == RandomiserStates.RANDOMISATION_FINAL)
     {
         ScenarioSettings.finalise();
+        RandomiserState = RandomiserStates.SCENARIO_IN_PROGRESS;
     }
     else
     {
-        console.log("Debug: restart loop")
-        // Debug
-        RandomiserState = RandomiserStates.NOT_STARTED;
+        console.log("Done!");
+        loadGameplayHooks();
         // Given this hook is what runs this function it can't be undefined here
         RandomiserTickUpdateHook?.dispose();
         RandomiserTickUpdateHook = undefined;
-        ActiveDifficultyManager = new DifficultyAdjuster;
+        setParkStorageKey("RandomisationState", RandomiserState);
     }
 }
 
@@ -176,6 +178,4 @@ export function randomiser()
     {
         RandomiserTickUpdateHook = context.subscribe("interval.tick", _tickRandomiser);
     }
-    
-    
 }
