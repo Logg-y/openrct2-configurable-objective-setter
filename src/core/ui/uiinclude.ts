@@ -1,4 +1,4 @@
-import { WritableStore, spinner, store, twoway, label, horizontal, button, checkbox, dropdown } from "openrct2-flexui";
+import { WritableStore, spinner, store, twoway, label, horizontal, button, checkbox, dropdown, LabelParams } from "openrct2-flexui";
 import { StringTable } from "../../util/strings";
 import { storeMap, ConfigOptionNumber, ConfigOptionBoolean } from "../sharedstorage";
 
@@ -223,6 +223,7 @@ export function storedNumberSpinner(params: StoredNumberSpinnerParams)
             {
                 desc = desc + `{NEWLINE}${rangeString}`;
             }
+            desc + desc + `{NEWLINE}${StringTable.UI_DEFAULT} ${options.defaultvalue}`
             ui.showTextInput(
                 {
                     title: StringTable.UI_ENTER_VALUE,
@@ -414,4 +415,32 @@ export function storedDropdown(params: StoredDropdownParams)
             selectedIndex: twoway<number>(thisStore),
             ...options,
         });  
+}
+
+interface LabelWithExtendedHelpParams extends LabelParams
+{
+    extendedHelp?: string,
+}
+
+export function labelWithExtendedHelpWrapper(options: LabelWithExtendedHelpParams)
+{
+    if (options.extendedHelp == undefined)
+    {
+        return label(options);
+    }
+    else
+    {
+        let output = [label(options), button({
+            text: "?",
+            border: true,
+            height: 14,
+            width: 14,
+            onClick: () => messageBox(
+            {
+                text: options.extendedHelp ?? "?",
+                height: 200,
+            }),
+        })]
+        return horizontal(output)
+    }
 }

@@ -1,8 +1,9 @@
-type LogTypes = "IndividualSim" | "SimManagerIterations" | "Warning" | "Error" | "StrategySwitchPoint" | "AllSuccessfulSims";
+type LogTypes = "IndividualSim" | "SimManagerIterations" | "Warning" | "Error" | "StrategySwitchPoint" | "AllSuccessfulSims" | "Info";
 
 export const ActiveLogTypes: Record<LogTypes, boolean> = {
     "Warning":true,
     "Error":true,
+    "Info":true,
     "IndividualSim":false,          // Extra individual sim outputs
     "SimManagerIterations":false,   // Potential infinite loops in the sim manager
     "StrategySwitchPoint":false,     // Info on what the optimal switch point finder is doing

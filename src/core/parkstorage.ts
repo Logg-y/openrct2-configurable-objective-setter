@@ -1,7 +1,6 @@
 
 const boolOptions =
 [
-    "AllowEarlyCompletion",
     "GuestNarrowIntensity",
     
 ] as const;
@@ -14,8 +13,10 @@ const numberOptions =
     "ScenarioLength",
     "ObjectiveQuantity",
 ] as const;
-const stringOptions =
+const stringOptions: string[] = [];
+const otherOptions =
 [
+    "SimActivityLog"
 ] as const;
 
 /*
@@ -24,13 +25,14 @@ interface ParkStorageMap
     [key: string]: number | boolean | string;
 }
 */
-type ParkStorageMap = Record<string, number|boolean|string>;
+type ParkStorageMap = Record<string, any>;
 
 export type ParkStorageBooleanKey = typeof boolOptions[number];
 export type ParkStorageNumberKey = typeof numberOptions[number];
 export type ParkStorageStringKey = typeof stringOptions[number];
+export type ParkStorageOtherKey = typeof otherOptions[number];
 
-export type ParkStorageKey = ParkStorageBooleanKey | ParkStorageNumberKey | ParkStorageStringKey;
+export type ParkStorageKey = ParkStorageBooleanKey | ParkStorageNumberKey | ParkStorageStringKey | ParkStorageOtherKey;
 
 function isNumberKey(opt: ParkStorageKey): opt is ParkStorageNumberKey
 {
@@ -41,12 +43,17 @@ function isBooleanKey(opt: ParkStorageKey): opt is ParkStorageBooleanKey
 {
     return boolOptions.filter((item) => item == opt).length > 0;
 }
+function isStringKey(opt: ParkStorageKey): opt is ParkStorageStringKey
+{
+    return stringOptions.filter((item) => item == opt).length > 0;
+}
 
 
 export function getParkStorageKey(opt: ParkStorageBooleanKey, defaultVal: boolean): boolean;
 export function getParkStorageKey(opt: ParkStorageNumberKey, defaultVal: number): number;
 export function getParkStorageKey(opt: ParkStorageStringKey, defaultVal: string): string;
-export function getParkStorageKey(opt: ParkStorageKey, defaultVal: boolean|number|string): boolean | number | string
+export function getParkStorageKey<T>(opt: ParkStorageOtherKey, defaultVal: T): T;
+export function getParkStorageKey<T>(opt: ParkStorageKey, defaultVal: boolean|number|string|T): boolean | number | string | T
 {
     let obj: ParkStorageMap | undefined = context.getParkStorage("ParkOptions").get("OptionsMap"); 
     let map: ParkStorageMap = {};
@@ -63,15 +70,20 @@ export function getParkStorageKey(opt: ParkStorageKey, defaultVal: boolean|numbe
     {
         return val as boolean;
     }
-    else
+    else if (isStringKey(opt))
     {
         return val as string;
+    }
+    else
+    {
+        return val as T;
     }
 }
 
 export function setParkStorageKey(opt: ParkStorageBooleanKey, val: boolean): void;
 export function setParkStorageKey(opt: ParkStorageNumberKey, val: number): void;
 export function setParkStorageKey(opt: ParkStorageStringKey, val: string): void;
+export function setParkStorageKey<T>(opt: ParkStorageOtherKey, val: T): void;
 export function setParkStorageKey(opt: ParkStorageKey, val: boolean|number|string): void
 {
     let obj: ParkStorageMap | undefined = context.getParkStorage("ParkOptions").get("OptionsMap"); 

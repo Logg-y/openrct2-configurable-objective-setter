@@ -2,8 +2,9 @@ import { pluginversion } from "../../util/pluginversion";
 import { tab, tabwindow, label, groupbox, horizontal, button } from "openrct2-flexui";
 import { storedNumberSpinner, storedCheckbox, storedDropdown, yesNoBox } from "./uiinclude";
 import { StringTable } from "../../util/strings";
-import { randomiser } from "../randomisermain";
+import { RandomiserState, RandomiserStates, randomiser } from "../randomisermain";
 import { saveStoreMap, loadStoreMap } from "../sharedstorage";
+import { UIRandomiserInProgress } from "./uirandomiserinprogress";
 
 var haveLoadedProfile = false;
 
@@ -126,8 +127,14 @@ const MainTab = [
 			text: StringTable.RUN,
 			height: 20,
 			onClick: () => {
-				console.log("Run clicked");
+				UIPregameTemplate.close();
+				if (RandomiserState !== RandomiserStates.NOT_STARTED && RandomiserState !== RandomiserStates.RANDOMISATION_FAILED)
+				{
+					ui.showError(StringTable.ERROR, StringTable.UI_ERROR_RANDOMISATION_ALREADY_STARTED)
+					return;
+				}
 				randomiser();
+				UIRandomiserInProgress();
 				//let manager = new DifficultySimManager;
 				//manager.run();
 			}
@@ -242,28 +249,46 @@ const LandTab = [
 		text: StringTable.UI_LAND_SETTINGS
 	}),
 	storedNumberSpinner({
-		storekey: "MaxDensity",
-		prompt: StringTable.UI_LAND_MAX_DENSITY,
-		tooltip: StringTable.UI_LAND_MAX_DENSITY_TOOLTIP,
-		extendedhelp: StringTable.UI_LAND_MAX_DENSITY_EXTHELP,
-		defaultvalue: 0.8,
-		minimum: 0.001,
-		maximum: 1000,
-		step: 0.01,
-		spinnerWidth: 90,
-		decimalPlaces: 3,
+		storekey: "TilesPer100SGC",
+		prompt: StringTable.UI_LAND_TILES_PER_100_SGC,
+		tooltip: StringTable.UI_LAND_TILES_PER_100_SGC_TOOLTIP,
+		extendedhelp: StringTable.UI_LAND_TILES_PER_100_SGC_EXTHELP,
+		defaultvalue: 170,
+		minimum: 1,
+		maximum: 10000,
+		step: 1,
+		spinnerWidth: 70,
 	}),
 	storedNumberSpinner({
-		storekey: "MaxDensityHardGuestGen",
-		prompt: StringTable.UI_LAND_MAX_DENSITY_HARD_GUEST_GEN,
-		tooltip: StringTable.UI_LAND_MAX_DENSITY_HARD_GUEST_GEN_TOOLTIP,
-		extendedhelp: StringTable.UI_LAND_MAX_DENSITY_HARD_GUEST_GEN_EXTHELP,
-		defaultvalue: 0.08,
-		minimum: 0.001,
+		storekey: "TilesPer100SGCHardGuestGen",
+		prompt: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN,
+		tooltip: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_TOOLTIP,
+		extendedhelp: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_EXTHELP,
+		defaultvalue: 400,
+		minimum: 1,
+		maximum: 10000,
+		step: 1,
+		spinnerWidth: 70,
+	}),
+	storedNumberSpinner({
+		storekey: "ParkEntranceProtectionRadius",
+		prompt: StringTable.UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS,
+		tooltip: StringTable.UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS_TOOLTIP,
+		defaultvalue: 15,
+		minimum: 1,
 		maximum: 1000,
-		step: 0.01,
-		spinnerWidth: 90,
-		decimalPlaces: 3,
+		step: 1,
+		spinnerWidth: 70,
+	}),
+	storedNumberSpinner({
+		storekey: "ParkFeatureProtectionRadius",
+		prompt: StringTable.UI_LAND_PARK_FEATURE_PROTECTION_RADIUS,
+		tooltip: StringTable.UI_LAND_PARK_FEATURE_PROTECTION_RADIUS,
+		defaultvalue: 3,
+		minimum: 1,
+		maximum: 1000,
+		step: 1,
+		spinnerWidth: 70,
 	}),
 	storedCheckbox({
 		storekey: "AllowNewLandBuying",
@@ -276,7 +301,8 @@ const LandTab = [
 		prompt: StringTable.UI_LAND_SHRINK_SPACE,
 		tooltip: StringTable.UI_LAND_SHRINK_SPACE_TOOLTIP,
 		defaultvalue: 0,
-	})
+	}),
+	
 ]
 const FinancialTab = [
 	label({
@@ -462,7 +488,7 @@ const SimulationSettingsTab = [
 		storekey: "SimGuestRideIncome",
 		prompt: StringTable.UI_SIMSETTINGS_RIDE_INCOME_PER_GUEST,
 		tooltip: StringTable.UI_SIMSETTINGS_RIDE_INCOME_PER_GUEST_TOOLTIP,
-		defaultvalue: 400,
+		defaultvalue: 300,
 		minimum: 1,
 		step: 10,
 		spinnerWidth: 90,
@@ -585,7 +611,7 @@ const SimulationSettingsTab = [
 	}),
 ]
 
-const UIMainTemplate = tabwindow(
+const UIPregameTemplate = tabwindow(
 {
 	title: `${StringTable.PLUGIN_MENU_ITEM} v${pluginversion}`,
     width: {value: 400, max: 10000},
@@ -630,12 +656,12 @@ const UIMainTemplate = tabwindow(
 	],
 });
 
-export function UIMain(): void
+export function UIPregame(): void
 {
     if (typeof ui !== "undefined")
     {
 		// Only load saved profile data if this is the first time opening the UI and there was no data already there to overwrite
-        UIMainTemplate.open()
+        UIPregameTemplate.open()
 		
 		if (haveLoadedProfile == false)
 		{

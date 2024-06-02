@@ -6,6 +6,7 @@ Look at the map and see:
 
 import { ScenarioSettings, FinancialPressureParams } from "./scenariosettings";
 import { getConfigOption } from "./sharedstorage";
+import { log } from "../util/logging";
 
 // SurfaceElement.ownership looks like it's going to be a bitmask
 const OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE = 64;
@@ -18,10 +19,6 @@ const OWNERSHIP_TILE_IS_OWNABLE = OWNERSHIP_OWNED + OWNERSHIP_AVAILABLE;
 // SmallSceneryObject.flags has this bit set if the "no tree removal" scenario option will stop you removing it
 const SMALL_SCENERY_FLAG_IS_TREE = 268435456;
 
-const LandRemovalFeatureAvoidanceDistance = 3;
-const LandRemovalParkEntranceAvoidanceDistance = 15;
-
-
 interface MapAnalysis
 {
     // Number of tiles of buyable land
@@ -32,12 +29,35 @@ interface MapAnalysis
     treeCount: number;
     // Number of trees on purchasable land
     treeCountOnPurchasable: number;
-    // Calculates the above values, returns true if done and false if more calls are needed
+    // 
+    /**
+     * Scans the map and records how many tiles of buyable land/rights and tree counts
+     * @return {*}  {boolean} true if completed, false if more calls needed
+     */
     analyseMap(): boolean;
     // Estimate the soft guest cap if someone were to build a super dense park using all available buyable land/rights
 
-    // After ScenarioSettings are rolled, we have more to do (calculating adjustedParkSize, working out how much land we can add/remove)
-    analyseMapAfterSettings(): boolean;
+    /**
+     * After ScenarioSettings are rolled, we have more to do (calculating adjustedParkSize, working out how much land we can add/remove)
+     * @return {*}  {boolean} true if completed, false if more calls needed
+     */
+    assessPossibleOwnershipChanges(): boolean;
+
+    /**
+     * Component of assessPossibleOwnershipChanges that iterates over the map and looks at each tile's ownership states
+     * @return {*}  {boolean}  true if completed, false if more calls needed
+     */
+    scanMapForOwnershipChanges(): boolean;
+
+    /**
+     * Find a valid value for this.parkCentralTile
+     */
+    calculateParkCentralTile(): CoordsXY;
+    /**
+     * Component of assessPossibleOwnershipChanges that processes the tile lists into records by distance that are useful for making actual modifications
+     * @return {*}  {boolean}  true if completed, false if more calls needed
+     */
+    categoriseOwnershipChangesByDistance(): boolean;    
 
     // park.parkSize after adjustment with scenario settings (eg forbidden high construction)
     adjustedParkSize: number,
@@ -60,19 +80,46 @@ interface MapAnalysis
     ownedLandFeatureAvoidanceMap: boolean[][],
     parkFenceIsDirty: boolean;
 
-    // Return true if done, or false if more needed
+    /**
+     * Adjusts tile ownership states based on the ScenarioSettings parameters
+     * @return {*}  {boolean} true if completed, false if more calls needed
+     */
     adjustTileOwnershipStates(): boolean,
 
     clearParkBoundaryFence(): boolean,
     rebuildParkBoundaryFence(): boolean,
+
+    // Processing intermediates
+    x: number;
+    y: number;
+    totalVanillaX: number;
+    totalVanillaY: number;
+    // How many more tiles etc we are allowed to process this iteration
+    squaresLeft: number;
+    // The tile closest to the midpoint of all playable land - when adding new buyable land, we want to search closest to this
+    parkCentralTile: undefined | CoordsXY;
+    // During changing tile ownerships: the initial number of tiles we have to work through. Otherwise, 0.
+    totalRequestedTiles: number;
+    /**
+     * @return {*}  A string detailing what percentage of the current operation is complete, eg "50.4%"
+     */
+    getProgress(): string;
+    
 }
 
 const SquaresPerTick = 400;
 
-var lastX = 0;
-var lastY = 0;
-
-function distanceToNearestEntrance(point: CoordsXY, entrances:CoordsXY[])
+/**
+ * @return {*} Squared distance between one and two
+ */
+function squaredDistanceBetween(one: CoordsXY, two: CoordsXY)
+{
+    return ((one.y - two.y) ** 2) + ((one.x - two.x) ** 2);
+}
+/**
+ * @return {*} The squared distance between testPoint and the nearest point in list
+ */
+function squaredDistanceToClosestInList(testPoint: CoordsXY, list:CoordsXY[])
 {
     // dist = dx + dy makes the avoidance area a bit too "pointy" for my taste
     /*
@@ -88,36 +135,44 @@ function distanceToNearestEntrance(point: CoordsXY, entrances:CoordsXY[])
     }, undefined)
     return lowest || NaN;
     */
-    let squaredLowest = entrances.reduce<undefined | number>((prior: undefined | number, entrance: CoordsXY) => {
+    let squaredLowest = list.reduce<undefined | number>((prior: undefined | number, thisPoint: CoordsXY) => {
 
-        let thisSquared = ((point.y - entrance.y) ** 2) + ((point.x - entrance.x) ** 2);
+        let thisSquared = squaredDistanceBetween(testPoint, thisPoint);
         if (prior === undefined) { return thisSquared; }
         if (prior < thisSquared)
         {
             return prior;
         }
         return thisSquared;
-    }, undefined)
-    return Math.ceil(Math.sqrt(squaredLowest || NaN));
+    }, undefined);
+    // There's no need to actually calc the sqrt in the end, can just compare squared dists
+    //return Math.ceil(Math.sqrt(squaredLowest || NaN));
+    return squaredLowest || NaN;
 }
-
-function getHighestRecordKeys<T>(record: Record<number, T>)
+/**
+ * @return {*} The numerically largest key in record
+ */
+function getHighestRecordKey<T>(record: Record<number, T>)
 {
     let keys = Object.keys(record).map((val: string) => Number(val)) as number[];
     return keys.reduce((accumulator: number, current: number) => { return current > accumulator ? current : accumulator; }, keys[0]);
 }
-
-function getLowestRecordKeys<T>(record: Record<number, T>)
+/**
+ * @return {*} The numerically smallest key in record
+ */
+function getLowestRecordKey<T>(record: Record<number, T>)
 {
     let keys = Object.keys(record).map((val: string) => Number(val)) as number[];
     return keys.reduce((accumulator: number, current: number) => { return current < accumulator ? current : accumulator; }, keys[0]);
 }
 
+/**
+ * @return {*} The Tile's surface element, or undefined if one wasn't found (this maybe isn't possible?)
+ */
 function getTileSurfaceElement(tile: Tile)
 {
-    for (const idx in tile.elements)
+    for (const elem of tile.elements)
     {
-        let elem = tile.elements[idx];
         if (elem.type == "surface")
         {
             return elem;
@@ -148,24 +203,31 @@ export const MapAnalysis: MapAnalysis =
     ownableTiles: [],
     parkFenceIsDirty: false,
 
+    x: 0,
+    y: 0,
+    totalVanillaX: 0,
+    totalVanillaY: 0,
+    parkCentralTile: undefined,
+    squaresLeft: 0,
+
+    totalRequestedTiles: 0,
+
     
     analyseMap()
     {
-        if (lastX == 0 && lastY == 0)
+        if (this.x == 0 && this.y == 0)
         {
             this.buyableLand = 0;
             this.buyableRights = 0;
             this.treeCount = 0;
             this.treeCountOnPurchasable = 0;
         }
-        let squaresLeft = SquaresPerTick;
-        let y = lastY;
-        let x = lastX;
-        while (y < map.size.y)
+        this.squaresLeft = SquaresPerTick;
+        while (this.y < map.size.y)
         {
-            while (x < map.size.x)
+            while (this.x < map.size.x)
             {
-                let tile = map.getTile(x, y);
+                let tile = map.getTile(this.x, this.y);
 
                 // The SurfaceElement always seems to come before the scenery, which is really convenient
                 let isTileOwnable = false;
@@ -200,63 +262,47 @@ export const MapAnalysis: MapAnalysis =
                         {
                             this.buyableRights++;
                         }
+                        if (isTileOwnable || isTileOwned)
+                        {
+                            this.totalVanillaX += this.x;
+                            this.totalVanillaY += this.y;
+                        }
                     }
                 }
-                squaresLeft--;
-                x++;
-                if (squaresLeft <= 0)
+                this.squaresLeft--;
+                this.x++;
+                if (this.squaresLeft <= 0)
                 {
                     break;
                 }
             }
-            if (squaresLeft > 0)
+            if (this.squaresLeft > 0)
             {
-                squaresLeft--;
-                x = 0;
-                y++;
+                this.squaresLeft--;
+                this.x = 0;
+                this.y++;
             }
-            if (squaresLeft <= 0)
+            if (this.squaresLeft <= 0)
             {
-                lastX = x;
-                lastY = y;
                 return false;
             }
         }
-        lastX = 0;
-        lastY = 0;
+        this.x = 0;
+        this.y = 0;
         return true;
     },
 
-    analyseMapAfterSettings()
+    scanMapForOwnershipChanges()
     {
-        if (lastX == 0 && lastY == 0)
-        {
-            if (ScenarioSettings.flags.indexOf("forbidTreeRemoval") > -1)
-            {
-                this.adjustedParkSize = Math.min(20, this.adjustedParkSize - this.treeCount * getConfigOption("SimForbidTreeRemovalSquareCost"));
-            }
-        }
-        // We only care about the land constraints if...
-        // 1) AllowNewLandBuying is enabled, then we need to chart the unowned map portions for what we could buy
-        // 2) ShrinkSpace is enabled, then we need to chart the owned map portions for what we can remove
-        // 3) forcebuyland FinancialDifficulty is in effect, then we need to chart owned map for what we can remove
         let chartUnowned = getConfigOption("AllowNewLandBuying");
         let chartOwned = getConfigOption("ShrinkSpace") || ScenarioSettings.financialPressures.indexOf("forcebuyland") > -1;
-
-        // Bail early if the settings don't care
-        if (!chartOwned && !chartUnowned)
+        this.squaresLeft = SquaresPerTick;
+        let parkFeatureAvoidanceDistance = getConfigOption("ParkFeatureProtectionRadius");
+        while (this.y < map.size.y)
         {
-            return true;
-        }
-
-        let squaresLeft = SquaresPerTick;
-        let y = lastY;
-        let x = lastX;
-        while (y < map.size.y)
-        {
-            while (x < map.size.x)
+            while (this.x < map.size.x)
             {
-                let tile = map.getTile(x, y);
+                let tile = map.getTile(this.x, this.y);
 
                 let isTileOwnable = false;
                 let isTileOwned = false;
@@ -265,7 +311,8 @@ export const MapAnalysis: MapAnalysis =
                 // An unowned tile could be made buyable if...
                 // 1) It does not contain a park entrance
                 // 2) It does not touch the edge of the world
-                // It might have to be construction rights, if it contains a piece of footpath that can't be removed without full ownership    
+                // If it contains a piece of footpath that can be removed with construction rights, it can't be made buyable else you can connect to the path leading to your park!
+                // If it contains path that can't be removed with construction rights, construction rights are okay
 
                 // A piece of footpath can be removed from construction rights if it is below the surface element, or 3 "big" units above
                 // a big unit is apparently 8 little units, and it looks like little is what is exposed to plugins as "baseZ"
@@ -296,7 +343,7 @@ export const MapAnalysis: MapAnalysis =
                         // 0 = ride entrance, 1 = ride exit, 2 = park entrance
                         if (element.object == 2)
                         {
-                            this.containsParkEntrance.push({x:x, y:y});
+                            this.containsParkEntrance.push({x:this.x, y:this.y});
                         }
                         isOwnedLandObstacle = true;
                     }
@@ -304,7 +351,7 @@ export const MapAnalysis: MapAnalysis =
                     {
                         isTileOwned = !!(element.ownership & OWNERSHIP_OWNED);
                         isTileOwnable = !!(element.ownership & OWNERSHIP_TILE_IS_OWNABLE);
-                        isTilePurchasable = !!(element.ownership & (OWNERSHIP_AVAILABLE + OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE)) && !isTileOwned;
+                        isTilePurchasable = !!(element.ownership & (OWNERSHIP_AVAILABLE + OWNERSHIP_CONSTRUCTION_RIGHTS_OWNED + OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE)) && !isTileOwned;
                         surfaceHeight= element.baseHeight;
                     }
                     else if (element.type === "track")
@@ -315,18 +362,18 @@ export const MapAnalysis: MapAnalysis =
                 }
                 if (considerOwnedToBuyable && isTileOwned)
                 {
-                    this.potentialOwnedToBuyableTiles.push({x:x, y:y});
-                    this.ownableTiles.push({x:x, y:y});
+                    this.potentialOwnedToBuyableTiles.push({x:this.x, y:this.y});
+                    this.ownableTiles.push({x:this.x, y:this.y});
                 }
                 else if (considerOwnedToBuyable && isTilePurchasable)
                 {
-                    this.ownableTiles.push({x:x, y:y});
+                    this.ownableTiles.push({x:this.x, y:this.y});
                 }
                 if (chartOwned && isOwnedLandObstacle && isTileOwned)
                 {
-                    for (let x2 = x - LandRemovalFeatureAvoidanceDistance; x2 < x + LandRemovalFeatureAvoidanceDistance; x2++)
+                    for (let x2 = this.x - parkFeatureAvoidanceDistance; x2 < this.x + parkFeatureAvoidanceDistance; x2++)
                     {
-                        for (let y2 = y - LandRemovalFeatureAvoidanceDistance; y2 < y + LandRemovalFeatureAvoidanceDistance; y2++)
+                        for (let y2 = this.y - parkFeatureAvoidanceDistance; y2 < this.y + parkFeatureAvoidanceDistance; y2++)
                         {
                             if (x2 > 0 && y2 > 0 && x2 < map.size.x && y2 < map.size.y)
                             {
@@ -338,14 +385,13 @@ export const MapAnalysis: MapAnalysis =
                 }
                 if (chartUnowned && !isTileOwnable && !isTilePurchasable)
                 {
-                    if (x > 0 && x < map.size.x && y > 0 && y < map.size.y)
+                    if (this.x > 0 && this.x < map.size.x && this.y > 0 && this.y < map.size.y)
                     {
                         if (surfaceHeight !== undefined)
                         {
                             let valid = true;
-                            for (const idx in pathHeights)
+                            for (const height of pathHeights)
                             {
-                                let height = pathHeights[idx];
                                 if (height < surfaceHeight || height > surfaceHeight + 3)
                                 {
                                     valid = false;
@@ -354,47 +400,94 @@ export const MapAnalysis: MapAnalysis =
                             }
                             if (valid)
                             {
-                                this.potentialUnownedToBuyableTiles.push({x:x, y:y});
+                                this.potentialUnownedToBuyableTiles.push({x:this.x, y:this.y});
                             }
                         }
                     }
                 }
 
-                squaresLeft--;
-                x++;
-                if (squaresLeft <= 0)
+                this.squaresLeft--;
+                this.x++;
+                if (this.squaresLeft <= 0)
                 {
                     break;
                 }
             }
-            if (squaresLeft > 0)
+            if (this.squaresLeft > 0)
             {
-                squaresLeft--;
+                this.squaresLeft--;
             }
-            if (x >= map.size.x)
+            if (this.x >= map.size.x)
             {
-                x = 0;
-                y++;
+                this.x = 0;
+                this.y++;
             }
-            if (squaresLeft <= 0)
+            if (this.squaresLeft <= 0)
             {
-                lastX = x;
-                lastY = y;
                 return false;
             }
         }
-        lastX = x;
-        lastY = y;
+        return true;
+    },
+    
 
-        console.log(`MapAnalysis late: ${this.potentialOwnedToBuyableTiles.length} potentially removable, ${this.potentialUnownedToBuyableTiles.length} potentially new buyable`);
-
-        let abstractTileArrayToRecord = (record: Record<number, CoordsXY[]>, tileArray: CoordsXY[], maxAllowed: number, minEntranceDistance: number, validationFunction = (coords: CoordsXY) => { return coords.x >= 0; }): number =>
+    assessPossibleOwnershipChanges()
+    {
+        if (this.x == 0 && this.y == 0)
         {
-            let maxIterations = Math.min(maxAllowed, tileArray.length);
-            let iteration = 0;
+            if (ScenarioSettings.flags.indexOf("forbidTreeRemoval") > -1)
+            {
+                this.adjustedParkSize = Math.max(20, this.adjustedParkSize - this.treeCount * getConfigOption("SimForbidTreeRemovalSquareCost"));
+            }
+        }
+        this.squaresLeft = SquaresPerTick;
+
+        // We only care about the land constraints if...
+        // 1) AllowNewLandBuying is enabled, then we need to chart the unowned map portions for what we could buy
+        // 2) ShrinkSpace is enabled, then we need to chart the owned map portions for what we can remove
+        // 3) forcebuyland FinancialDifficulty is in effect, then we need to chart owned map for what we can remove
+        let chartUnowned = getConfigOption("AllowNewLandBuying");
+        let chartOwned = getConfigOption("ShrinkSpace") || ScenarioSettings.financialPressures.indexOf("forcebuyland") > -1;
+
+        // Bail early if the settings don't care
+        if (!chartOwned && !chartUnowned)
+        {
+            return true;
+        }
+
+        if (!this.scanMapForOwnershipChanges())
+        {
+            return false;
+        }
+
+        if (!this.categoriseOwnershipChangesByDistance())
+        {
+            return false;
+        }
+        return true;
+    },
+
+    categoriseOwnershipChangesByDistance()
+    {
+        // 
+        // For most things the distance is from the closest park entrance, we want to do things like make the furthest tiles from an entrance owned->buyable first
+        // For unowned->buyable we want to measure from a park midpoint instead, starting around the park entrance (and going behind it!) is weird
+        /**
+         * Add to a record of <distance from something>:<list of coordinates> from a flat array of tile coordinates.
+         * @param {Record<number, CoordsXY[]>} record Record to add to
+         * @param {CoordsXY[]} tileArray Array of coordinates of tiles to process
+         * @param {number} minAvoidanceDistance Discard tiles whose distance from the something <= this value
+         * @param {boolean} [validationFunction=(_: CoordsXY) => { return true;}] Discard tiles for which this function returns false
+         * @param {*} [getDistanceForCoords=(point: CoordsXY) => { return squaredDistanceToClosestInList(point, this.containsParkEntrance);}] Function to calculate distance for each tile
+         * @return {*}  {number} Number of tiles added to the record
+         */
+        let tileArrayToDistanceSortedRecord = (record: Record<number, CoordsXY[]>, tileArray: CoordsXY[], minAvoidanceDistance: number, validationFunction = (_: CoordsXY) => { return true;}, getDistanceForCoords=(point: CoordsXY) => { return squaredDistanceToClosestInList(point, this.containsParkEntrance);} ): number =>
+        {
+            let maxIterations = Math.min(this.squaresLeft, tileArray.length);
             let numSuccessful = 0;
             // Because it only returns the number it succeeds at
             // This function is really doing maxAllowed SUCCESSFUL squares rather than all the ones it checks
+            let avoidanceDistanceSquare = minAvoidanceDistance * minAvoidanceDistance;
             while (numSuccessful < maxIterations)
             {
                 let coords = tileArray.pop();
@@ -404,8 +497,8 @@ export const MapAnalysis: MapAnalysis =
                 }
                 if (validationFunction(coords))
                 {
-                    let entranceDist = distanceToNearestEntrance(coords, this.containsParkEntrance);
-                    if (isNaN(entranceDist) || entranceDist > minEntranceDistance)
+                    let entranceDist = getDistanceForCoords(coords);
+                    if (isNaN(entranceDist) || entranceDist > avoidanceDistanceSquare)
                     {
                         let intDist = Math.round(entranceDist);
                         record[intDist] = record[intDist] ?? [];
@@ -413,7 +506,7 @@ export const MapAnalysis: MapAnalysis =
                         numSuccessful++;
                     }
                 }
-                iteration++;
+                this.squaresLeft--;
             }
             return numSuccessful;
         }
@@ -427,68 +520,95 @@ export const MapAnalysis: MapAnalysis =
             return true;
         }
         
-        let added = abstractTileArrayToRecord(this.ownedToPurchasableTilesByDistance, this.potentialOwnedToBuyableTiles, squaresLeft, LandRemovalParkEntranceAvoidanceDistance, checkFeatureAvoidanceMap);
+        let added = tileArrayToDistanceSortedRecord(this.ownedToPurchasableTilesByDistance, this.potentialOwnedToBuyableTiles, getConfigOption("ParkEntranceProtectionRadius"), checkFeatureAvoidanceMap);
         this.maxOwnedToPurchasableTiles += added;
-        squaresLeft -= added;
-        if (squaresLeft <= 0)
+        if (this.squaresLeft <= 0)
         {
             return false;
         }
 
-        added = abstractTileArrayToRecord(this.unownedToPurchasableTilesByDistance, this.potentialUnownedToBuyableTiles, squaresLeft, 2);
+        if (this.parkCentralTile === undefined && this.potentialUnownedToBuyableTiles.length > 0)
+        {
+            this.parkCentralTile = this.calculateParkCentralTile();
+            log(`Park central tile: ${this.parkCentralTile.x}, ${this.parkCentralTile.y}`, "Info");
+        }
+        
+        // minAvoidanceDistance in this case is around the park midpoint - so 0 is okay
+        // we want to avoid making anything TOO close to the park entrances buyable though, hence the validation function with hardcoded radius of 2
+        added = tileArrayToDistanceSortedRecord(this.unownedToPurchasableTilesByDistance, this.potentialUnownedToBuyableTiles, 0, (point: CoordsXY) =>
+        {
+            return squaredDistanceToClosestInList(point, this.containsParkEntrance) > 2*2;
+        },
+        (point: CoordsXY) =>
+        {
+            return squaredDistanceBetween(point, this.parkCentralTile as CoordsXY);
+        }
+        );
         this.maxUnownedToPurchasableTiles += added;
-        squaresLeft -= added;
-        if (squaresLeft <= 0)
+        if (this.squaresLeft <= 0)
         {
             return false;
         }
 
-        added = abstractTileArrayToRecord(this.ownableToUnownedTilesByDistance, this.ownableTiles, squaresLeft, LandRemovalParkEntranceAvoidanceDistance, checkFeatureAvoidanceMap);
+        added = tileArrayToDistanceSortedRecord(this.ownableToUnownedTilesByDistance, this.ownableTiles, getConfigOption("ParkEntranceProtectionRadius"), checkFeatureAvoidanceMap);
         this.maxOwnableToUnownableTiles += added;
-        squaresLeft -= added;
-        if (squaresLeft <= 0)
+        if (this.squaresLeft <= 0)
         {
             return false;
         }
 
         FinancialPressureParams.forcebuyland.max = this.maxOwnedToPurchasableTiles;
 
-        console.log(`Unprocessed array items: ${this.ownableTiles.length + this.potentialOwnedToBuyableTiles.length + this.potentialUnownedToBuyableTiles.length}`);
+        let unprocessed = this.ownableTiles.length + this.potentialOwnedToBuyableTiles.length + this.potentialUnownedToBuyableTiles.length;
+        if (unprocessed > 0)
+        {
+            log(`Unprocessed array items: ${unprocessed}`, "Warning");
+        }
 
-        console.log(`analyseMapAfterSettings: ${this.maxOwnedToPurchasableTiles} tiles could be owned->purchasable, ${this.maxUnownedToPurchasableTiles} tiles could be unowned->purchasable, ${this.maxOwnableToUnownableTiles} could be owned/purchasable->unowned`)
-        lastX = 0;
-        lastY = 0;
+        log(`Map ownership analysis: ${this.maxOwnedToPurchasableTiles} tiles could be owned->purchasable, ${this.maxUnownedToPurchasableTiles} tiles could be unowned->purchasable, ${this.maxOwnableToUnownableTiles} could be owned/purchasable->unowned`, "Info");
+        this.x = 0;
+        this.y = 0;
         return true;
 
     },
 
     adjustTileOwnershipStates()
     {
-        let abstractTileConverter = function(record: Record<number, CoordsXY[]>, maxAllowed: number, conversionFunction: (tile: Tile) => void, orderFunction=getHighestRecordKeys)
+        if (this.totalRequestedTiles == 0)
+        {
+            this.totalRequestedTiles = ScenarioSettings.numOwnedTilesToBuyable + ScenarioSettings.numUnownedTilesToPurchasable + ScenarioSettings.numOwnableTilesToMakeUnbuyable;
+            log(`Change tile ownership: ${ScenarioSettings.numOwnedTilesToBuyable} owned to buyable, ${ScenarioSettings.numUnownedTilesToPurchasable} unowned to buyable, ${ScenarioSettings.numOwnableTilesToMakeUnbuyable} owned to unbuyable`, "Info");
+        }
+
+        // This is a LOT laggier, I'm not entirely sure why
+        this.squaresLeft = SquaresPerTick/40;
+        let abstractTileConverter = (record: Record<number, CoordsXY[]>, maxToConvert: number, conversionFunction: (tile: Tile) => void, orderFunction=getHighestRecordKey) =>
         {
             let totalConverted = 0;
-            while (maxAllowed > 0)
+            let numToConvert = Math.min(this.squaresLeft, maxToConvert);
+            while (numToConvert > 0)
             {
                 let highestDist = orderFunction(record);
                 if (highestDist === undefined)
                 {
-                    console.log(`WARNING: was asked to change ownership of ${maxAllowed} more tiles than we found were possible`);
-                    return maxAllowed;
+                    log(`Was asked to change ownership of ${maxToConvert} more tiles than we found were possible`, "Info");
+                    return totalConverted;
                 }
                 let numOfThisDist = record[highestDist].length;
-                let numToChange = Math.min(maxAllowed, numOfThisDist);
-                maxAllowed -= numToChange;
-                if (numToChange == 0)
+                let numToChangeOfThisDist = Math.min(numToConvert, numOfThisDist);
+                if (numToChangeOfThisDist == 0)
                 {
                     break;
                 }
-                while (numToChange > 0)
+                while (numToChangeOfThisDist > 0)
                 {
                     let tileCoords = record[highestDist].pop() as CoordsXY;
                     let tile = map.getTile(tileCoords.x, tileCoords.y);
                     conversionFunction(tile);
-                    numToChange--;
+                    numToChangeOfThisDist--;
                     totalConverted++;
+                    numToConvert--;
+                    this.squaresLeft--;
                 }
                 if (record[highestDist].length == 0)
                 {
@@ -496,20 +616,17 @@ export const MapAnalysis: MapAnalysis =
                 }
             }
             return totalConverted;
-        }.bind(this);
+        };
 
         // It turns out that some tiles in some scenarios (Forest Frontiers!) have multiple bits set in a way that is nonsensical.
         // There's a strip of 5 or so tiles that have 160 = OWNERSHIP_OWNED + OWNERSHIP_AVAILABLE and that's a bit confusing
         // I did have these functions preserve most of the original bitmask, but that seems to cause more problems than it helps
-        let squaresLeft = SquaresPerTick;
+        
 
-        console.log(`adjustTileOwnershipStates: ${ScenarioSettings.numOwnedTilesToBuyable} owned to buyable, ${ScenarioSettings.numUnownedTilesToPurchasable} unowned to buyable, ${ScenarioSettings.numOwnableTilesToMakeUnbuyable} owned to unbuyable`);
-
-        let converted = abstractTileConverter(this.ownedToPurchasableTilesByDistance, Math.min(squaresLeft, ScenarioSettings.numOwnedTilesToBuyable), (tile) =>
+        let converted = abstractTileConverter(this.ownedToPurchasableTilesByDistance, ScenarioSettings.numOwnedTilesToBuyable, (tile) =>
         {
-            for (const idx in tile.elements)
+            for (const element of tile.elements)
             {
-                let element = tile.elements[idx];
                 if (element.type == "surface")
                 {
                     if ((element.ownership & OWNERSHIP_OWNED) > 0)
@@ -525,22 +642,20 @@ export const MapAnalysis: MapAnalysis =
                 }
             }
         });
-        squaresLeft -= converted;
         ScenarioSettings.numOwnedTilesToBuyable -= converted;
-        if (squaresLeft <= 0)
+        if (this.squaresLeft <= 0)
         {
             return false;
         }
 
         // We already screened tiles in this record - if they contain any path at all, we know we have to make it construction rights
         // not full ownership
-        converted = abstractTileConverter(this.unownedToPurchasableTilesByDistance, Math.min(squaresLeft, ScenarioSettings.numUnownedTilesToPurchasable), (tile) =>
+        converted = abstractTileConverter(this.unownedToPurchasableTilesByDistance, ScenarioSettings.numUnownedTilesToPurchasable, (tile) =>
             {
                 let surface: undefined | SurfaceElement;
                 let hasPath = false;
-                for (const idx in tile.elements)
+                for (const element of tile.elements)
                 {
-                    let element = tile.elements[idx];
                     if (element.type == "surface")
                     {
                         surface = element;
@@ -565,19 +680,17 @@ export const MapAnalysis: MapAnalysis =
                         surface.ownership = OWNERSHIP_AVAILABLE;
                     }
                 }
-            }, getLowestRecordKeys);
-        squaresLeft -= converted;
+            }, getLowestRecordKey);
         ScenarioSettings.numUnownedTilesToPurchasable -= converted;
-        if (squaresLeft <= 0)
+        if (this.squaresLeft <= 0)
         {
             return false;
         }
 
-        converted = abstractTileConverter(this.ownableToUnownedTilesByDistance, Math.min(squaresLeft, ScenarioSettings.numOwnableTilesToMakeUnbuyable), (tile) =>
+        converted = abstractTileConverter(this.ownableToUnownedTilesByDistance, ScenarioSettings.numOwnableTilesToMakeUnbuyable, (tile) =>
             {
-                for (const idx in tile.elements)
+                for (const element of tile.elements)
                 {
-                    let element = tile.elements[idx];
                     if (element.type == "surface")
                     {
                         if ((element.ownership & OWNERSHIP_OWNED) > 0)
@@ -590,50 +703,88 @@ export const MapAnalysis: MapAnalysis =
                     }
                 }
             });
-        squaresLeft -= converted;
         ScenarioSettings.numOwnableTilesToMakeUnbuyable -= converted;
-        if (squaresLeft <= 0)
+        if (this.squaresLeft <= 0)
         {
             return false;
         }
 
-        
+        this.totalRequestedTiles = 0;
         return true;
+    },
+
+    calculateParkCentralTile(): CoordsXY
+    {
+        let midX = Math.round(this.totalVanillaX/(park.parkSize + this.buyableLand + this.buyableRights));
+        let midY = Math.round(this.totalVanillaY/(park.parkSize + this.buyableLand + this.buyableRights));
+        let dist = 0;
+        while (true)
+        {
+            // Start at the midpoint, try to find any tile that is owned/buyable
+            // Each step we go outwards looking, we only need search the "unfilled square" that is made of tiles we didn't check before
+            let squareSideLength = 1 + dist * 2;
+            let toSearch: CoordsXY[] = [];
+            for (let k=0; k<squareSideLength; k++) { toSearch.push({x: midX+dist+k, y:midY-dist})}
+            for (let k=0; k<squareSideLength; k++) { toSearch.push({x: midX+dist+k, y:midY+dist})}
+            // Deliberately going from 1 to (length-1) to avoid duplicating corners
+            for (let k=1; k<squareSideLength-1; k++) { toSearch.push({x: midX+dist, y:midY-dist+k})}
+            for (let k=1; k<squareSideLength-1; k++) { toSearch.push({x: midX+dist, y:midY-dist-k})}
+
+            for (const coords of toSearch)
+            {
+                let surface = getTileSurfaceElement(map.getTile(coords.x, coords.y));
+                if (surface !== undefined)
+                {
+                    if ((surface.ownership & (OWNERSHIP_OWNED + OWNERSHIP_AVAILABLE + OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE + OWNERSHIP_CONSTRUCTION_RIGHTS_OWNED)) > 0)
+                    {
+                        return coords;
+                    }
+                }
+                this.squaresLeft--;
+            }
+
+            dist++;
+
+            // Safety exit condition that SHOULD never happen
+            if (squareSideLength >= map.size.x && squareSideLength >= map.size.y)
+            {
+                if (this.containsParkEntrance.length > 0)
+                {
+                    return this.containsParkEntrance[0];
+                }
+                return {x:0, y:0}
+            }
+        }
     },
 
     clearParkBoundaryFence()
     {
         if (!this.parkFenceIsDirty)
         {
-            console.log("No changes made to land ownership, no need to touch boundary fencing!")
             return true;
         }
-        let squaresLeft = SquaresPerTick;
-        let x = lastX;
-        let y = lastY;
-        while (x < map.size.x)
+        this.squaresLeft = SquaresPerTick;
+        while (this.y < map.size.y)
         {
-            while (y < map.size.y)
+            while (this.x < map.size.x)
             {
-                let thisTile = getTileSurfaceElement(map.getTile(x, y));
+                let thisTile = getTileSurfaceElement(map.getTile(this.x, this.y));
                 if (thisTile !== undefined)
                 {
                     thisTile.parkFences = 0;
                 }
-                squaresLeft--;
-                if (squaresLeft <= 0)
+                this.squaresLeft--;
+                if (this.squaresLeft <= 0)
                 {
-                    lastX = x;
-                    lastY = y;
                     return false;
                 }
-                y++;
+                this.x++;
             }
-            y = 0;
-            x++;
+            this.x = 0;
+            this.y++;
         }
-        lastX = 0;
-        lastY = 0;
+        this.y = 0;
+        this.x = 0;
         
         return true;
     },
@@ -644,35 +795,34 @@ export const MapAnalysis: MapAnalysis =
         {
             return true;
         }
+        // SurfaceElement.parkFences is a bitmask for which sides to put the fence on.
         // These live on the tiles OUTSIDE the park bounds.
         // the coord+1 tile is the tile that is in the park
         // Y and Y+1: 1
         // X and X+1: 2
         // Y and Y-1: 4
         // X and X-1: 8
-        let squaresLeft = SquaresPerTick;
-        let x = lastX;
-        let y = lastY;
+        this.squaresLeft = SquaresPerTick;
         // These offsets are backwards because they are relative to the tile that's inside the park
         // whereas the observations above are compared to the tile outside
         const offsetList = [{y:-1, x:0}, {x:-1, y:0}, {y:1, x:0}, {x:1, y:0}];
-        while (x < map.size.x)
+        while (this.y < map.size.y)
         {
-            while (y < map.size.y)
+            while (this.x < map.size.x)
             {
-                let thisTile = getTileSurfaceElement(map.getTile(x, y));
-                squaresLeft--;
+                let thisTile = getTileSurfaceElement(map.getTile(this.x, this.y));
+                this.squaresLeft--;
                 if (thisTile !== undefined && (thisTile.ownership & OWNERSHIP_OWNED) > 0)
                 {
                     let offsetIndex = 0;
                     while (offsetIndex < 4)
                     {
                         let offset = offsetList[offsetIndex];
-                        let x2 = x + offset.x;
-                        let y2 = y + offset.y;
+                        let x2 = this.x + offset.x;
+                        let y2 = this.y + offset.y;
                         if (x2 > 0 && x2 < map.size.x && y2 > 0 && y2 < map.size.y)
                         {
-                            squaresLeft--;
+                            this.squaresLeft--;
                             let compareTile = getTileSurfaceElement(map.getTile(x2, y2));
                             if (compareTile !== undefined && (compareTile.ownership & OWNERSHIP_OWNED) == 0)
                             {
@@ -682,23 +832,20 @@ export const MapAnalysis: MapAnalysis =
                         offsetIndex++;
                     }
                 }
-                if (squaresLeft <= 0)
+                if (this.squaresLeft <= 0)
                 {
-                    lastX = x;
-                    lastY = y;
                     return false;
                 }
-                y++;
+                this.x++;
             }
-            y = 0;
-            x++;
+            this.x = 0;
+            this.y++;
         }
 
         // Park entrance tiles should not have park fences on
         // (else a park fence "blocks" your entrance and it looks silly)
-        for (const idx in this.containsParkEntrance)
+        for (const coords of this.containsParkEntrance)
         {
-            let coords = this.containsParkEntrance[idx];
             let tile = getTileSurfaceElement(map.getTile(coords.x, coords.y));
             if (tile !== undefined)
             {
@@ -708,5 +855,23 @@ export const MapAnalysis: MapAnalysis =
 
         
         return true;
+    },
+
+    getProgress()
+    {
+        let proportion = 0;
+        if (this.totalRequestedTiles > 0)
+        {
+            let tilesAssigned = this.totalRequestedTiles - (ScenarioSettings.numOwnedTilesToBuyable + ScenarioSettings.numUnownedTilesToPurchasable + ScenarioSettings.numOwnableTilesToMakeUnbuyable);
+            proportion = tilesAssigned/this.totalRequestedTiles;
+        }
+        else
+        {
+            // All the map scanning functions have X as the inner loop and Y as the outer
+            // If that isn't kept then this will make reported progress jump all over the place erratically
+            let numTilesChecked = this.x + (this.y * map.size.x);
+            proportion = numTilesChecked/(map.size.x * map.size.y);
+        }  
+        return (proportion*100).toFixed(1) + "%";
     },
 }

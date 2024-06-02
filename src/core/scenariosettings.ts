@@ -385,10 +385,11 @@ export var ScenarioSettings: ScenarioSettingsType =
         }
         else
         {
-            scenario.objective.type = "haveFun";
+            scenario.objective.type = "repayLoanAndParkValue";
+            scenario.objective.parkValue = 100000;
         }
         let oldDetails = scenario.details;
-        scenario.details = oldDetails + StringTable.SCENARIO_DETAILS_FILLER;
+        scenario.details = oldDetails + context.formatString(StringTable.SCENARIO_DETAILS_FILLER, this.scenarioLength*8-1);
         park.setFlag("freeParkEntry", this.payPerRide);
         park.setFlag("difficultGuestGeneration", this.flags.indexOf("difficultGuestGeneration") > -1);
         park.setFlag("difficultParkRating", this.flags.indexOf("difficultParkRating") > -1);

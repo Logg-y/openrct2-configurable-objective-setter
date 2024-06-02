@@ -4,22 +4,39 @@
 
 import { getParkStorageKey } from "./parkstorage"
 
+const IntensityPreferencesNeutral = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const IntensityPreferencesLow = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5];
+const IntensityPreferencesHigh = [6, 7, 7, 8, 8, 8, 9, 9, 9];
+
 function guestNarrowIntensityHook()
 {
     // Probably want to get through all guests every ~30s, which means checking 1/128 every ~9 ticks
     // Obviously as the array changes size some are going to get missed, but... does that matter?
+    // It's that or taking a copy of it after we finish going through it every time, which sounds worse than missing a few
     if (date.ticksElapsed % 9 == 0)
     {
         let offset = (date.ticksElapsed / 9) % 128;
         let guests = map.getAllEntities("guest");
+        let choiceArray = IntensityPreferencesNeutral;
+        if (park.getFlag("preferMoreIntenseRides") && !park.getFlag("preferLessIntenseRides"))
+        {
+            choiceArray = IntensityPreferencesHigh;
+        }
+        else if (park.getFlag("preferLessIntenseRides") && !park.getFlag("preferMoreIntenseRides"))
+        {
+            choiceArray = IntensityPreferencesLow;
+        }
+        let arrLength = choiceArray.length;
         while (offset < guests.length)
         {
             let guest = guests[offset];
-            let range = Math.min(9, guest.maxIntensity) - guest.minIntensity;
-            let picked = guest.minIntensity + context.getRandom(0, range+1);
-            guest.minIntensity = picked;
-            guest.maxIntensity = picked;
-            offset += 128;
+            if (guest.id != null)
+            {
+                let picked = choiceArray[guest.id % arrLength];
+                guest.minIntensity = picked;
+                guest.maxIntensity = picked;
+                offset += 128;
+            }
         }
     }
 }
@@ -47,8 +64,7 @@ function applyInterestModificationHook()
     let interestMod = getParkStorageKey("LoanInterestModification", 0);
     if (interestMod != 0)
     {
-        // @ts-ignore action parameters expect callbacks that accept one param that I don't need, and TS complains they are unused
-        context.registerAction("ConfigurableObjectiveSetterLoanInterest", (args) => { return {}}, (args) => {
+        context.registerAction("ConfigurableObjectiveSetterLoanInterest", (_) => { return {}}, (_) => {
             let weeklyInterest = (park.bankLoan * 5 * interestMod) >>> 14;
             return {cost: weeklyInterest, expenditureType: "interest"};
         })

@@ -1,6 +1,16 @@
 // If anyone ever wanted to localise this, most of the important userfacing text is a property of an object
 // that could be switched out on the fly
 
+export function formatTokens(template: string, ...replacements: string[])
+{
+    for (let i=0; i<replacements.length; i++)
+    {
+        let token = `{${i}}`;
+        template = template.replace(token, replacements[i]);
+    }
+    return template;
+}
+
 export const StringTable =
 {
     PLUGIN_MENU_ITEM: "Configurable Objective Setter",
@@ -10,6 +20,7 @@ export const StringTable =
     ERROR: "Error",
     RUN: "Run",
 
+    UI_ERROR_RANDOMISATION_ALREADY_STARTED: "Run already begun. If nothing is happening, you may need to restart the scenario.",
     UI_VALUE_NOT_NUMERIC: "Entered value was not numeric.",
 
     UI_ENTER_VALUE: "Enter Value...",
@@ -82,20 +93,26 @@ export const StringTable =
     // Land settings
     UI_LAND_SETTINGS: "{PALEGOLD}Land Settings",
 
-    UI_LAND_MAX_DENSITY: "Max required density: ",
-    UI_LAND_MAX_DENSITY_TOOLTIP: "How dense a park you can be expected to build in soft guest cap contribution per tile.",
-    UI_LAND_MAX_DENSITY_EXTHELP: "How dense a park you can be expected to build, measured in soft guest{NEWLINE}cap per tile of available building space. This is further adjusted if{NEWLINE}factors like harder guest generation or forbidden high construction{NEWLINE}are enabled.{NEWLINE}{NEWLINE}Not enabling 'expand buyable land' will simply mean that the simulation{NEWLINE}can't increase the soft guest cap beyond this limit.",
+    UI_LAND_TILES_PER_100_SGC: "Tiles per 100 soft guest cap: ",
+    UI_LAND_TILES_PER_100_SGC_TOOLTIP: "How many tiles of stuff you expect to build to get 100 soft guest cap.",
+    UI_LAND_TILES_PER_100_SGC_EXTHELP: "This determines how dense a park you will be expected to build. The{NEWLINE}measurement is how many tiles are needed for 100 soft guest cap.{NEWLINE}This is further adjusted if factors like harder guest generation or forbidden{NEWLINE}high construction are enabled.{NEWLINE}{NEWLINE}The simulation isn't allowed to increase soft guest cap beyond{NEWLINE}how much space is available. 'Expand buyable land' will increase this{NEWLINE}dramatically, potentially allowing it to cover the entire map.",
 
-    UI_LAND_MAX_DENSITY_HARD_GUEST_GEN: "Max required density (harder guest generation): ",
-    UI_LAND_MAX_DENSITY_HARD_GUEST_GEN_TOOLTIP: "The amount of space needed per soft guest cap in harder guest generation parks when the guest count is over 1000.",
-    UI_LAND_MAX_DENSITY_HARD_GUEST_GEN_EXTHELP: context.formatString("Harder guest generation causes rides to stop contributing soft guest cap at{NEWLINE}1000, unless they have an excitement of 6.0 or above and a ride length{NEWLINE}of {LENGTH}, but rides meeting these requirements count double{NEWLINE}for soft guest cap.{NEWLINE}{NEWLINE}This value is how many tiles are needed to get 1 soft guest cap{NEWLINE}with these rides.", 600),
+    UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN: "Tiles per 100 soft guest cap (harder guest generation): ",
+    UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_TOOLTIP: "The amount of space needed per 100 soft guest cap in harder guest generation parks when the guest count is over 1000.",
+    UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_EXTHELP: context.formatString("Harder guest generation causes rides to stop contributing soft guest cap at{NEWLINE}1000, unless they have an excitement of 6.0 or above and a ride length{NEWLINE}of {LENGTH}, but rides meeting these requirements count double{NEWLINE}for soft guest cap.{NEWLINE}{NEWLINE}This value is how many tiles are needed to get 100 soft guest cap{NEWLINE}with these rides.", 600),
 
 
     UI_LAND_MAKE_BUYABLE: "Expand buyable land",
     UI_LAND_MAKE_BUYABLE_TOOLTIP: "Whether or not normally unbuyable land could be made buyable to give you more space to build in.",
 
-    UI_LAND_SHRINK_SPACE: "Force max density",
-    UI_LAND_SHRINK_SPACE_TOOLTIP: "Whether or not normally owned or buyable land should be made unbuyable to limit the space you have to build in (so that you have to build a park to the specified max density).",
+    UI_LAND_SHRINK_SPACE: "Remove unneeded playable land",
+    UI_LAND_SHRINK_SPACE_TOOLTIP: "This option will remove buyable/owned land that the simulation did not need in order to complete the scenario. If this scenario has more than one entrance, making sure that they are joined by path/rides might be needed to ensure they can still connect to each other.",
+
+    UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS: "Park entrance protection radius: ",
+    UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS_TOOLTIP: "Tiles within this distance of a park entrance cannot have their ownership states changed.",
+
+    UI_LAND_PARK_FEATURE_PROTECTION_RADIUS: "Path/ride protection radius: ",
+    UI_LAND_PARK_FEATURE_PROTECTION_RADIUS_TOOLTIP: "Tiles inside the park within this distance of a piece of currently existing path or ride cannot have their ownership states changed.",
 
     // Financial settings
     UI_FINANCIAL_SETTINGS: "{PALEGOLD}Financial Pressure Settings",
@@ -206,20 +223,53 @@ export const StringTable =
     UI_SIMSETTINGS_GUEST_TURNOVER_MAXIMUM_EXTHELP: "The default value is based on closing food stalls only.{NEWLINE}Mechanics abuse or less humane methods can get much higher values than{NEWLINE}this.{NEWLINE}{NEWLINE}This includes things like dropping guests into the void.",
 
 
-    SCENARIO_DETAILS_FILLER: "{NEWLINE}{NEWLINE}This scenario has had its objective changed. Check the Configurable Objective Setter window to see more.",
+    SCENARIO_DETAILS_FILLER: "{NEWLINE}{NEWLINE}You have until the end of {MONTHYEAR} to complete your objective. Check the Configurable Objective Setter window to see more.",
 
-    RANDOMISER_STATE_NOT_STARTED: "Not started: ",
+    UI_WORKING: "{PALEGOLD}Working...",
+    UI_WORKING_UNPAUSE: "The game must be UNPAUSED for this to progress.",
+    UI_WORKING_STAGE_PROGRESS: "Stage progress: ",
+    UI_WORKING_DIFFICULTYSIM_DIFFERENCE: "Trying to match requested average cash on hand; current: ",
+    UI_WORKING_DIFFICULTYSIM_NO_VALID: "Trying to find completable settings...",
+
+    RANDOMISER_STATE_NOT_STARTED: "Not started.",
     RANDOMISER_STATE_WAITING_ENGINE_VALUES: "Waiting for engine calculated values...",
-    RANDOMISER_STATE_MAP_ANALYSIS: "Analysing the map...",
-    RANDOMISER_STATE_LANDOWNERSHIP_ANALYSIS: "Looking for potentially buyable land...",
-    RANDOMISER_STATE_DIFFICULTYSIM_COARSE: "Adjusting difficulty (coarse)...",
-    RANDOMISER_STATE_DIFFICULTYSIM_FINE: "Adjusting difficulty (fine)...",
+    RANDOMISER_STATE_MAP_ANALYSIS: "Basic map analysis...",
+    RANDOMISER_STATE_LANDOWNERSHIP_ANALYSIS: "Looking for land that might change ownership...",
+    RANDOMISER_STATE_DIFFICULTYSIM: "Adjusting difficulty...",
     RANDOMISER_STATE_LANDOWNERSHIP_ASSIGNMENT: "Assigning land ownership...",
+    RANDOMISER_STATE_PARK_FENCE_REMOVAL: "Removing park fence...",
     RANDOMISER_STATE_PARK_FENCE_RECONSTRUCTION: "Reconstructing park fence...",
+    RANDOMISER_STATE_FINALISING: "Finalising...",
     RANDOMISER_STATE_SCENARIO_IN_PROGRESS: "Scenario in progress!",
-    RANDOMISER_STATE_SCENARIO_COMPLETE: "Scenario complete!",
-    RANDOMISER_STATE_SCENARIO_FAILED: "Scenario failed!",
-    RANDOMISER_STATE_RUINED: "Ruined: don't save/load a game mid randomisation.",
+    RANDOMISER_STATE_FAILED: "Found no way to make a completable scenario with given settings.",
+    RANDOMISER_STATE_RUINED: "Ruined: don't save/load a game while running!",
 
-    
+    UI_OBJECTIVE_HEADING: "{PALEGOLD}Objective Info",
+    UI_OBJECTIVE: "Objective: ",
+    UI_OBJECTIVE_GUESTS_IN_PARK: "{0} guests at the end of {MONTHYEAR}.",
+    UI_OBJECTIVE_REPAY_LOAN: "Repay loan and {CURRENCY} park value by the end of{NEWLINE}{MONTHYEAR}.",
+
+    UI_OBJECTIVE_CONDITION_PAY_PER_RIDE: "Guests pay per ride.",
+    UI_OBJECTIVE_CONDITION_PAY_FOR_ENTRY: "Guests pay for park entry.",
+    UI_OBJECTIVE_CONDITION_LOAN_MODIFICATION: "Loan interest has been modified by {0}%.",
+    UI_OBJECTIVE_CONDITION_GUEST_CASH_MODIFICATION: "Guest starting cash is now {CURRENCY}-{CURRENCY}.",
+    UI_OBJECTIVE_CONDITION_FORBID_MARKETING: "Marketing campaigns are forbidden.",
+    UI_OBJECTIVE_CONDITION_HARDER_GUEST_GENERATION: "Harder guest generation is active.",
+    UI_OBJECTIVE_CONDITION_HARDER_PARK_RATING: "Harder park rating is active.",
+    UI_OBJECTIVE_CONDITION_FORBID_HIGH_CONSTRUCTION: "High construction is forbidden.",
+    UI_OBJECTIVE_CONDITION_FORBID_LAND_CHANGES: "Landscape changes are forbidden.",
+    UI_OBJECTIVE_CONDITION_FORBID_TREE_REMOVAL: "Tree removal is forbidden.",
+    UI_OBJECTIVE_CONDITION_LESS_INTENSE: "Guests prefer less intense rides.",
+    UI_OBJECTIVE_CONDITION_MORE_INTENSE: "Guests prefer more intense rides.",
+    UI_OBJECTIVE_CONDITION_UMBRELLA_CHANCE: "Guests have a {0}% chance to generate with an umbrella.",
+    UI_OBJECTIVE_CONDITION_NARROW_INTENSITY_PREFERENCE: "Guests have very narrow intensity preferences.",
+    UI_OBJECTIVE_CONDITION_MAX_LOAN: "Maximum loan is {CURRENCY}.",
+    UI_OBJECTIVE_CONDITION_LAND_COST: "Land and construction rights cost {CURRENCY}.",
+
+    UI_SIMULATION_INFO: "{PALEGOLD}Simulation Info",
+    UI_SIMULATION_EXAMINE_DESCRIPTION: "This is the output of the difficulty simulation that gave rise to the{NEWLINE}modified settings. It offers a month by month view of what it 'did'.",
+    UI_SIMULATION_ADJUST_MONTH: "Month: ",
+    UI_SIMULATION_ADJUST_YEAR: "Year: ",
+
+    UI_DEFAULT: "Default: ",
 }

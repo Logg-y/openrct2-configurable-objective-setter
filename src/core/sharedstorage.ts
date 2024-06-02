@@ -37,8 +37,10 @@ const numberOptions =
     "ForbidHighConstructionChance",
     "ForbidTreeRemovalChance",
     "ForbidLandscapeChangesChance",
-    "MaxDensity",
-    "MaxDensityHardGuestGen",
+    "TilesPer100SGC",
+    "TilesPer100SGCHardGuestGen",
+    "ParkEntranceProtectionRadius",
+    "ParkFeatureProtectionRadius",
     "FinancialDifficultyMethodsMin",
     "FinancialDifficultyMethodsMax",
     "FinancialDifficultyMinInterestRate",
@@ -100,10 +102,7 @@ export function getConfigOption(opt: ConfigOption): boolean | number
 }
 
 
-interface SavedMap
-{
-    [key: string] : number,
-}
+type SavedMap = Record<string, number>;
 
 export function loadStoreMap()
 {

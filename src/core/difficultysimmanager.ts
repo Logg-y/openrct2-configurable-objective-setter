@@ -3,8 +3,8 @@ import { MapAnalysis } from "./maptiles";
 import { FinancialPressure, ScenarioSettings, FinancialPressureParams, FinancialPressureSettings } from "./scenariosettings";
 import { getConfigOption } from "./sharedstorage";
 import { ActiveLogTypes, log } from "../util/logging";
-
-export var FinalActivityLog: string[] = [];
+import { setParkStorageKey } from "./parkstorage";
+import { StringTable } from "../util/strings";
 
 // TODO: setting-ify these
 
@@ -146,7 +146,7 @@ class OptimalStrategyFinder
             return SimulationStatusReport.WAITING;
         }
         // This means that it didn't actually finish repaying its loan!
-        if (sim.monthsLeft == 0 && ScenarioSettings.objectiveType == "repayLoanAndParkValue" && sim.objectiveMetric > 0)
+        if (sim.monthsLeft == 0 && ScenarioSettings.objectiveType == "repayLoanAndParkValue" && (sim.cashAvailable - sim.unrepaidLoan) < 0)
         {
             simIsViable = false;
         }
@@ -159,9 +159,12 @@ class OptimalStrategyFinder
             this.switchMonthResults[switchPoint] = sim;
             if (ActiveLogTypes["AllSuccessfulSims"])
             {
-                for (const k in sim.activityLog)
+                for (const k of sim.activityLog)
                 {
-                    log(sim.activityLog[k], "AllSuccessfulSims");
+                    for (const j of k)
+                    {
+                        log(j, "AllSuccessfulSims");
+                    }
                 }
             }
         }
@@ -311,181 +314,6 @@ class OptimalStrategyFinder
 
 }
 
-/*
-class FineAdjustSettingsContainer
-{
-    settingsBeingTested: FinancialPressureSettings = {};
-    targetValue = 0;
-    bestSettings: undefined | FinancialPressureSettings = undefined;
-    bestValue: undefined | number;
-
-    // Organising the possibility space is a challenge, as it becomes a multi dimensional array with a variable amount of dimensions
-    // depending on how many financial pressures were asked for!
-
-    // Managing that with type safety sounds awful, because the definition would presumably need to look something like
-    //data: number[] | number[][] | number[][][] | number[][][][] | number[][][][][] = [];
-
-    // I don't know if this would actually be any faster, because culling larger amounts of the possibility space then needs doing by hand
-    // rather than just a single .filter call every time - which maybe leaves more in the hands of the JS interpreter
-    // ... and an implementation that deals with the varying amounts of dimensions without making any mistakes would be a LOT harder than just doing this:
-    private data: FinancialPressureSettings[] = [];
-
-    // Get a random setting combination that hasn't been tested yet
-    getRandomUntestedSettings(): FinancialPressureSettings
-    {
-        if (this.data.length % 10 == 0)
-        {
-            console.log(`Fine adjust settings queue contains ${this.data.length}`);
-        }
-        let last = this.data.pop();
-        this.settingsBeingTested = last ?? {};
-        return this.settingsBeingTested;
-    }
-
-    
-    // Process a SimulationResult generated from the given FinancialPressureSettings.
-    // Return true if this is a new best, otherwise false.
-    processSettingsResult(result: SimulationResult)
-    {
-        if (result === SimulationStatusReport.IMPOSSIBLE)
-        {
-            console.log(`Impossible result: ${JSON.stringify(this.settingsBeingTested)}`);
-            // If the sim wasn't possible to complete, we can remove everything more difficult than it
-            this.data = this.data.filter((elem: FinancialPressureSettings) =>
-                {
-                    let k: keyof FinancialPressureSettings;
-                    for (k in elem)
-                    {
-                        let thisTrial = this.settingsBeingTested[k];
-                        let other = elem[k];
-                        if (thisTrial !== undefined && other !== undefined)
-                        {
-                            let stepDirection = FinancialPressureParams[k].step;
-                            if ((stepDirection > 0 && thisTrial > other) || (stepDirection < 0 && thisTrial < other))
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                    return false;
-                }
-            )
-            return false;
-        }
-        else
-        {
-            let thisDiff = 0;
-            let bestDiff = 1;
-            if (this.bestValue !== undefined)
-            {
-                bestDiff = Math.abs(this.targetValue - this.bestValue);
-                thisDiff = Math.abs(this.targetValue - result.lowestCashAvailable);
-            }
-            if (bestDiff > thisDiff)
-            {
-                this.bestValue = result.lowestCashAvailable;
-                this.bestSettings = this.settingsBeingTested;
-                console.log(`New best settings: ${JSON.stringify(this.bestSettings)}`);
-                return true;
-            }
-            console.log(`Discard settings: ${JSON.stringify(this.settingsBeingTested)} (${result.lowestCashAvailable} vs ${this.bestValue}), diffs ${thisDiff} vs ${bestDiff}`);
-        }
-        
-        return false;
-    }
-
-    constructor(targetValue: number, bestSettings: typeof ScenarioSettings)
-    {
-        this.targetValue = targetValue;
-        let numFinancialPressures = bestSettings.financialPressures.length;
-        if (numFinancialPressures > 0)
-        {
-            let statesPerPressure = Math.round(Math.pow(FineAdjustTargetNumberStates, (1/numFinancialPressures)));
-            console.log(`Fine adjust: ${numFinancialPressures} dimensions with ${statesPerPressure} values each`);
-
-            let pressureStages: {pressure:FinancialPressure,start:number, num:number, step:number}[] = [];
-            
-            for (let index in bestSettings.financialPressures)
-            {
-                let pressure = bestSettings.financialPressures[index];
-                let val = bestSettings.getValueFromFinancialPressure(pressure);
-                let params = FinancialPressureParams[pressure];
-                let stepsToMax = 50;
-                if (params.max !== undefined)
-                {
-                    stepsToMax = Math.abs((val - params.max)/FinancialPressureParams[pressure].step);
-                }
-                let step = Math.max(1, Math.floor(stepsToMax/statesPerPressure));
-                pressureStages.push({start:val, num:statesPerPressure, pressure:pressure, step:step});
-            }
-            let a = function recursiveArrayBuilder(states: {pressure:FinancialPressure,start:number,num:number,step:number}[])
-            {
-                let thisIterationOutput: FinancialPressureSettings[] = [];
-                let thisIteration = states.pop();
-                if (thisIteration !== undefined)
-                {
-                    let val = thisIteration.start;
-                    let params = FinancialPressureParams[thisIteration.pressure];
-                    let step = params.step * thisIteration.step;
-                    let diff = 0;
-                    let iteration = 0;
-                    let lastAddedIteration = 0;
-                    while (thisIteration.num > 0)
-                    {
-                        let newVal = val + (diff * (iteration % 2 == 0 ? 1 : -1));
-                        if ((params.max === undefined || newVal <= params.max) && (params.min === undefined || newVal >= params.min))
-                        {
-                            thisIterationOutput.push({[thisIteration.pressure]: newVal});
-                            lastAddedIteration = iteration;
-                            thisIteration.num--;
-                        }
-                        
-                        if (iteration % 2 == 0)
-                        {
-                            diff += step;
-                        }
-                        iteration++;
-                        if (iteration - lastAddedIteration > 3)
-                        {
-                            break;
-                        }
-                    }
-                    if (states.length > 0)
-                    {
-                        let recursiveOutput = recursiveArrayBuilder(states);
-                        let combinedOutput: FinancialPressureSettings[] = [];
-                        for (const outputIndex in recursiveOutput)
-                        {
-                            let outputItem = recursiveOutput[outputIndex];
-                            for (const newIndex in thisIterationOutput)
-                            {
-                                let newItem = thisIterationOutput[newIndex]
-                                combinedOutput.push({...newItem, ...outputItem});
-                            }
-                        }
-                        return combinedOutput;
-                    }
-                }
-                return thisIterationOutput;
-            }
-            this.data = a(pressureStages);
-
-            // Shuffle the settings order
-            let currentIndex = this.data.length;
-            while (currentIndex > 0) 
-            {
-                let randomIndex = context.getRandom(0, currentIndex);
-                currentIndex--;
-                [this.data[currentIndex], this.data[randomIndex]] = [this.data[randomIndex], this.data[currentIndex]];
-            }
-
-            console.log(`Initial fine adjust settings queue contains ${this.data.length} items`);
-            
-        }
-    }
-}
-*/
-
 type DifficultyAdjusterModes = "coarse" | "fine";
 
 export class DifficultyAdjuster
@@ -495,15 +323,15 @@ export class DifficultyAdjuster
 
     private lastDifficultyAdjustment = 10;
     private lastFinancialPressure: FinancialPressure | undefined = undefined;
+    private financialPressureWeights: Partial<Record<FinancialPressure, number>> = {};
     private unadjustableFinancialPressures : FinancialPressure[] = [];
-    private adjustmentStep = 128;
+    private adjustmentStep = 256;
 
     canAlterStartingCash = false;
 
     strategyFinder = new OptimalStrategyFinder;
 
     mode: DifficultyAdjusterModes = "coarse";
-    //private fineAdjustSettings: FineAdjustSettingsContainer | undefined = undefined;
     finalSettings: FinancialPressureSettings = {};
     
     // Coarse difficulty adjustment:
@@ -563,10 +391,6 @@ export class DifficultyAdjuster
         {
             console.log("handleSimResult: increase was okay");
             this.unadjustableFinancialPressures = [];
-            if (this.mode == "fine")
-            {
-                this.adjustmentStep = 16;
-            }
         }
 
         if (this.tightestFinancial === undefined && !resultIsOkay)
@@ -597,12 +421,7 @@ export class DifficultyAdjuster
                 return SimulationStatusReport.OK;
             }
 
-            if (this.adjustmentStep > 64 && this.mode == "coarse")
-            {
-                this.adjustmentStep = Math.max(1, Math.floor(this.adjustmentStep/2));
-                this.unadjustableFinancialPressures = [];
-            }
-            else if (this.adjustmentStep > 1 && this.mode == "fine")
+            if ((this.adjustmentStep > 32 && this.mode == "coarse") || this.adjustmentStep > 1 && this.mode == "fine")
             {
                 this.adjustmentStep = Math.max(1, Math.floor(this.adjustmentStep/2));
                 this.unadjustableFinancialPressures = [];
@@ -664,6 +483,49 @@ export class DifficultyAdjuster
         return amount;
     }
 
+    getRandomFinancialPressureToAdjust(amount: number): FinancialPressure | SimulationStatusReport.IMPOSSIBLE
+    {
+        let possiblePressures: FinancialPressure[] = [];
+        for (let pressureKey in ScenarioSettings.financialPressures)
+        {
+            let pressure = ScenarioSettings.financialPressures[pressureKey];
+            if (this.unadjustableFinancialPressures.indexOf(pressure) <= -1 && this.canAdjustPressure(pressure, amount) != 0)
+            {
+                possiblePressures.push(pressure);
+            }
+        }
+        // If desperate we allow increasing initial cash
+        if (possiblePressures.length == 0 && this.canAdjustPressure("initialcash", amount) != 0 && this.bestSimulation === undefined)
+        {
+            possiblePressures.push("initialcash");
+        }
+        if (possiblePressures.length == 0)
+        {
+            console.log("No possible pressures, can't increase further");
+            return SimulationStatusReport.IMPOSSIBLE;
+        }
+        let totalWeight = possiblePressures.reduce<number>((accumulator: number, current: FinancialPressure) => {
+            let thisWeight = this.financialPressureWeights[current];
+            if (thisWeight === undefined)
+            { 
+                thisWeight = context.getRandom(1, 11);
+                this.financialPressureWeights[current] = thisWeight;
+                console.log(`Random weight for financial pressure ${current} = ${thisWeight}`);
+            }
+            return accumulator + thisWeight;
+        }, 0);
+        let weightLeft = context.getRandom(0, totalWeight);
+        for (const idx in possiblePressures)
+        {  
+            weightLeft -= this.financialPressureWeights[possiblePressures[idx]] || 5;
+            if (weightLeft < 0)
+            {
+                return possiblePressures[idx];
+            }
+        }
+        return possiblePressures[context.getRandom(0, possiblePressures.length)];
+    }
+
 
     // Return: true if we managed to adjust settings, false if we can't
     adjustSettingsForDifficulty(amount: number, financialPressure: FinancialPressure | undefined): SimulationStatusReport.OK | SimulationStatusReport.IMPOSSIBLE
@@ -671,26 +533,15 @@ export class DifficultyAdjuster
         this.lastDifficultyAdjustment = amount;
         if (financialPressure === undefined)
         {
-            let possiblePressures: FinancialPressure[] = [];
-            for (let pressureKey in ScenarioSettings.financialPressures)
+            let toAdjust = this.getRandomFinancialPressureToAdjust(amount);
+            if (toAdjust == SimulationStatusReport.IMPOSSIBLE)
             {
-                let pressure = ScenarioSettings.financialPressures[pressureKey];
-                if (this.unadjustableFinancialPressures.indexOf(pressure) <= -1 && this.canAdjustPressure(pressure, amount) != 0)
-                {
-                    possiblePressures.push(pressure);
-                }
+                return toAdjust;
             }
-            // If desperate we allow increasing initial cash
-            if (possiblePressures.length == 0 && this.canAdjustPressure("initialcash", amount) != 0 && this.bestSimulation === undefined)
+            else
             {
-                possiblePressures.push("initialcash");
+                financialPressure = toAdjust;
             }
-            if (possiblePressures.length == 0)
-            {
-                console.log("No possible pressures, can't increase further");
-                return SimulationStatusReport.IMPOSSIBLE;
-            }
-            financialPressure = possiblePressures[context.getRandom(0, possiblePressures.length)];
         }
         let actualAmount = this.canAdjustPressure(financialPressure, amount) * FinancialPressureParams[financialPressure].step;
         if (actualAmount == 0)
@@ -738,6 +589,7 @@ export class DifficultyAdjuster
                 if (this.mode == "coarse")
                 {
                     this.mode = "fine"
+                    this.adjustmentStep = 8;
                     this.unadjustableFinancialPressures = [];
                     //this.fineAdjustSettings = new FineAdjustSettingsContainer(getConfigOption("CashTightness"), ScenarioSettings);
                     //ScenarioSettings.loadFinancialPressureSettings(this.fineAdjustSettings.getRandomUntestedSettings());
@@ -746,13 +598,9 @@ export class DifficultyAdjuster
                 {
                     if (this.bestSimulation !== undefined)
                     {
-                        for (const k in this.bestSimulation.activityLog)
-                        {
-                            console.log(this.bestSimulation.activityLog[k]);
-                        }
+                        setParkStorageKey<string[][]>("SimActivityLog", this.bestSimulation.activityLog);
                         console.log(`Best sim average cash on hand: ${this.bestSimulation.averageEndMonthCash}`);
                         // This is the best place to pull anything out of the final simulation that we might want to keep
-                        FinalActivityLog = this.bestSimulation.activityLog;
                         let unownedToOwnedTilesNeeded = this.bestSimulation.totalLandBought - (MapAnalysis.buyableLand + MapAnalysis.buyableRights + ScenarioSettings.numOwnedTilesToBuyable);
                         if (unownedToOwnedTilesNeeded > 0)
                         {
@@ -760,8 +608,8 @@ export class DifficultyAdjuster
                         }
                         if (getConfigOption("ShrinkSpace"))
                         {
-                            let excessTiles = (park.parkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights) - this.bestSimulation.totalLandUsage;
-                            console.log(`Initial state contains ${park.parkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights} playable tiles`);
+                            let excessTiles = (MapAnalysis.adjustedParkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights) - this.bestSimulation.totalLandUsage;
+                            console.log(`Initial state contains ${MapAnalysis.adjustedParkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights} playable tiles`);
                             console.log(`Sim apparently uses ${this.bestSimulation.totalLandUsage}, so ${excessTiles} need removing`)
                             if (excessTiles > 0)
                             {
@@ -788,24 +636,22 @@ export class DifficultyAdjuster
             
         }
     }
+
+    getProgress()
+    {
+        if (this.tightestFinancial === undefined)
+        {
+            return StringTable.UI_WORKING_DIFFICULTYSIM_NO_VALID;
+        }
+        let diff = Math.abs(this.tightestFinancial - getConfigOption("CashTightness"));
+        return context.formatString("{CURRENCY}", diff);
+    }
 }
 
 /*
 Unimplemented:
 
-Weight the pressures randomly for variance rather than relying on coarse to do it. For repay loan, the initialdebt is going tohave to be high.
+Park value goals seem to like to repay their loan super early?
 
-UI: rando in progress
-UI: scenario in progress
-
-Financial starts
-Financial pressures
-
-Umbrella start
-Narrow intensity preferences
-Guest start cash
-Additional forced interest
-Time limits
-
-Objectives window
+Deadlines!
 */
