@@ -1,15 +1,15 @@
-import { WritableStore, spinner, store, twoway, label, horizontal, button, checkbox, dropdown, LabelParams } from "openrct2-flexui";
+import { WritableStore, spinner, store, twoway, label, horizontal, button, checkbox, dropdown, LabelParams, SpinnerParams} from "openrct2-flexui";
 import { StringTable } from "../../util/strings";
 import { storeMap, ConfigOptionNumber, ConfigOptionBoolean } from "../sharedstorage";
 
 
 interface MessageBoxParams
 {
-    text: string,
-    text2?: string
-    title?: string,
+    text: string | string[]
+    classification?: string,
     width?: number,
     height?: number,
+    title?: string,
 }
 
 const MessageBoxParamsDefaults = 
@@ -25,30 +25,39 @@ const messageBoxButtonHeight = 30;
 
 function messageBox(params: MessageBoxParams): void
 {
+    // Unfortunately the one thing I CAN'T figure out how to get flexui to do is to make a button close the window it's on
+    // since the close method exists on the return value of window() and by that point it's too late to slip another element in
     if (ui !== undefined)
         {
         let options = {...MessageBoxParamsDefaults, ...params};
         let windowTemplate = options as WindowDesc;
-        windowTemplate["widgets"] = [
+        windowTemplate.widgets = [];
+        if (Array.isArray(options.text))
+        {
+            let index = 0;
+            for (const text of options.text)
             {
-                type: "label",
-                x: 0,
-                y: messageBoxTitlePadding,
-                height: options.height - (messageBoxButtonHeight + messageBoxTitlePadding),
-                width: options.width,
-                text: options.text,
-            },
-        ]
-        if (options.text2 !== undefined)
+                windowTemplate.widgets.push({
+                    type: "label",
+                    x: 0,
+                    y: messageBoxTitlePadding + (index*100),
+                    width: options.width,
+                    height: options.height - (messageBoxButtonHeight + messageBoxTitlePadding),
+                    text: text
+                })
+                index++;
+            }
+        }
+        else
         {
             windowTemplate["widgets"].push(
                 {
                     type: "label",
                     x: 0,
-                    y: messageBoxTitlePadding + 100,
+                    y: messageBoxTitlePadding,
                     height: options.height - (messageBoxButtonHeight + messageBoxTitlePadding),
                     width: options.width,
-                    text: options.text2,
+                    text: options.text,
                 },
             )
         }
@@ -66,9 +75,6 @@ function messageBox(params: MessageBoxParams): void
                 }
             }
         );
-        
-        
-
         ui.openWindow(windowTemplate);
     }
 }
@@ -78,11 +84,9 @@ interface YesNoBoxParams
     text: string,
     yesbuttontext?: string,
     nobuttontext?: string,
-    title?: string,
-    width?: number,
-    height?: number,
     yesCallback?: () => void;
     noCallback?: () => void;
+    title?: string,
 }
 
 const YesNoBoxParamsDefaults = 
@@ -155,28 +159,24 @@ export function yesNoBox(params: YesNoBoxParams): void
     }
 }
 
-interface StoredNumberSpinnerParams
+interface StoredNumberSpinnerParams extends SpinnerParams
 {
     storekey: ConfigOptionNumber,
     prompt: string,
-    tooltip?: string,
     defaultvalue: number,
-    minimum?: number,
-    maximum?: number,
-    spinnerWidth?: number,
-    extendedhelp?: string,
-    extendedhelp2?: string,
-    step?: number,
+    extendedhelp?: string | string[],
     decimalPlaces?: number,
     formatCurrency?: boolean,
     formatCurrency2dp?: boolean,
-    format?: (value: number) => string;
+    minimum?: number,
+    maximum?: number,
+    width?: number,
 }
 
 const StoredNumberSpinnerDefaults =
 {
     tooltip: "",
-    spinnerWidth: 65,
+    width: 65,
     step: 1,
     formatCurrency: false,
     formatCurrency2dp: false,
@@ -254,7 +254,7 @@ export function storedNumberSpinner(params: StoredNumberSpinnerParams)
 
     // Make the spinner box narrower if there's an extended help ? button
     // this makes columns of these widgets all align neatly which looks way nicer
-    let actualWidth = options.spinnerWidth;
+    let actualWidth = options.width;
     if (options.extendedhelp !== undefined)
     {
         actualWidth -= 18;
@@ -296,7 +296,11 @@ export function storedNumberSpinner(params: StoredNumberSpinnerParams)
     else
     {
         // Not sure what the conventional way of making TS realise this can't be undefined here is
-        let helpText = options.extendedhelp as string;
+        let helpText = options.extendedhelp;
+        if (!Array.isArray(helpText))
+        {
+            helpText = [helpText];
+        }
         return horizontal([
             promptLabel,
             setValueButton,
@@ -310,8 +314,7 @@ export function storedNumberSpinner(params: StoredNumberSpinnerParams)
                 onClick: () => messageBox(
                     {
                         text: helpText,
-                        text2: options.extendedhelp2,
-                        height: options.extendedhelp2 === undefined ? 200 : 280,
+                        height: 120 + helpText.length * 80,
                     }),
             })
         ]);    
@@ -376,7 +379,6 @@ export function storedCheckbox(params: StoredCheckboxParams)
                 onClick: () => messageBox(
                     {
                         text: helpText,
-                        text2: options.extendedhelp,
                     }),
             })
         ]);    

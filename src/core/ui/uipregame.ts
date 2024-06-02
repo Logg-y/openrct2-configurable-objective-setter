@@ -68,8 +68,7 @@ const MainTab = [
 		storekey: "GuestDifficulty",
 		prompt: StringTable.UI_GUEST_DIFFICULTY,
 		tooltip: StringTable.UI_GUEST_DIFFICULTY_TOOLTIP,
-		extendedhelp: StringTable.UI_GUEST_DIFFICULTY_EXTHELP,
-		extendedhelp2: StringTable.UI_GUEST_DIFFICULTY_EXTHELP2,
+		extendedhelp: [StringTable.UI_GUEST_DIFFICULTY_EXTHELP, StringTable.UI_GUEST_DIFFICULTY_EXTHELP2],
 		defaultvalue: 30,
 		minimum: 5,
 		maximum: 2000,
@@ -83,7 +82,7 @@ const MainTab = [
 		formatCurrency: true,
 		minimum: 0,
 		step: 5000,
-		spinnerWidth: 120,
+		width: 120,
 	}),
 	storedNumberSpinner({
 		storekey: "ScenarioLength",
@@ -121,7 +120,7 @@ const MainTab = [
 		formatCurrency: true,
 		minimum: 0,
 		step: 5000,
-		spinnerWidth: 120,
+		width: 120,
 	}),
 	button({
 			text: StringTable.RUN,
@@ -252,7 +251,7 @@ const LandTab = [
 		minimum: 1,
 		maximum: 10000,
 		step: 1,
-		spinnerWidth: 70,
+		width: 70,
 	}),
 	storedNumberSpinner({
 		storekey: "TilesPer100SGCHardGuestGen",
@@ -263,7 +262,7 @@ const LandTab = [
 		minimum: 1,
 		maximum: 10000,
 		step: 1,
-		spinnerWidth: 70,
+		width: 70,
 	}),
 	storedNumberSpinner({
 		storekey: "ParkEntranceProtectionRadius",
@@ -273,7 +272,7 @@ const LandTab = [
 		minimum: 1,
 		maximum: 1000,
 		step: 1,
-		spinnerWidth: 70,
+		width: 70,
 	}),
 	storedNumberSpinner({
 		storekey: "ParkFeatureProtectionRadius",
@@ -283,7 +282,7 @@ const LandTab = [
 		minimum: 1,
 		maximum: 1000,
 		step: 1,
-		spinnerWidth: 70,
+		width: 70,
 	}),
 	storedCheckbox({
 		storekey: "AllowNewLandBuying",
@@ -477,7 +476,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 32,
 		minimum: 1,
 		step: 1,
-		spinnerWidth: 90,
+		width: 90,
 	}),
 	storedNumberSpinner({
 		storekey: "SimGuestRideIncome",
@@ -486,7 +485,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 300,
 		minimum: 1,
 		step: 10,
-		spinnerWidth: 90,
+		width: 90,
 		formatCurrency: true,
 	}),
 	storedNumberSpinner({
@@ -496,7 +495,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 12,
 		minimum: 1,
 		step: 2,
-		spinnerWidth: 90,
+		width: 90,
 		formatCurrency2dp: true,
 	}),
 	storedNumberSpinner({
@@ -507,7 +506,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 25000,
 		minimum: 1,
 		step: 200,
-		spinnerWidth: 90,
+		width: 90,
 		formatCurrency: true,
 	}),
 	storedNumberSpinner({
@@ -517,7 +516,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 140000,
 		minimum: 1,
 		step: 1000,
-		spinnerWidth: 90,
+		width: 90,
 		formatCurrency: true,
 	}),
 	storedNumberSpinner({
@@ -527,7 +526,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 100,
 		minimum: 1,
 		step: 200,
-		spinnerWidth: 90,
+		width: 90,
 		formatCurrency: true,
 	}),
 	storedNumberSpinner({
@@ -537,7 +536,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 300,
 		minimum: 1,
 		step: 10,
-		spinnerWidth: 90,
+		width: 90,
 		formatCurrency: true,
 	}),
 	storedNumberSpinner({
@@ -547,7 +546,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 1200,
 		minimum: 1,
 		step: 50,
-		spinnerWidth: 90,
+		width: 90,
 		formatCurrency: true,
 	}),
 	storedNumberSpinner({
@@ -557,7 +556,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 4,
 		minimum: 0,
 		step: 0.1,
-		spinnerWidth: 90,
+		width: 90,
 		decimalPlaces: 2,
 	}),
 	storedNumberSpinner({
@@ -567,7 +566,7 @@ const SimulationSettingsTab = [
 		defaultvalue: 1.5,
 		minimum: 0,
 		step: 0.05,
-		spinnerWidth: 90,
+		width: 90,
 		decimalPlaces: 2,
 	}),
 	storedNumberSpinner({
@@ -578,7 +577,7 @@ const SimulationSettingsTab = [
 		minimum: 0,
 		maximum: 100,
 		step: 0.1,
-		spinnerWidth: 90,
+		width: 90,
 		decimalPlaces: 2,
 	}),
 	storedNumberSpinner({
@@ -590,7 +589,7 @@ const SimulationSettingsTab = [
 		minimum: 0,
 		maximum: 100,
 		step: 0.1,
-		spinnerWidth: 90,
+		width: 90,
 		decimalPlaces: 2,
 	}),
 	storedNumberSpinner({
@@ -601,7 +600,7 @@ const SimulationSettingsTab = [
 		minimum: 0,
 		maximum: 100,
 		step: 1,
-		spinnerWidth: 90,
+		width: 90,
 		decimalPlaces: 1,
 	}),
 ]
