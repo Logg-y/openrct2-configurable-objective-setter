@@ -363,13 +363,16 @@ export class DifficultyAdjuster
             let isNewBest = false;
             if (this.tightestFinancial === undefined)
             {
-                isNewBest = true;
+                if (result.averageEndMonthCash >= getConfigOption("CashTightness"))
+                {
+                    isNewBest = true;
+                }
             }
             else
             {
                 let bestDiff = Math.abs(this.tightestFinancial - getConfigOption("CashTightness"));
                 let thisDiff = Math.abs(result.averageEndMonthCash - getConfigOption("CashTightness"));
-                console.log(`This iteration's difference ${thisDiff} vs best known ${bestDiff} ${thisDiff < bestDiff ? "- NEW BEST" : ""})`);
+                log(`This iteration's difference ${thisDiff} vs best known ${bestDiff} ${thisDiff < bestDiff ? "- NEW BEST" : ""})`, "DifficultyAdjusterInfo");
                 // Debating whether to allow lower - for consistent user difficulty it's probably best not to
                 if (thisDiff < bestDiff && result.averageEndMonthCash >= getConfigOption("CashTightness"))
                 {
@@ -389,20 +392,28 @@ export class DifficultyAdjuster
         }
         if (resultIsOkay)
         {
-            console.log("handleSimResult: increase was okay");
+            //console.log("handleSimResult: increase was okay");
             this.unadjustableFinancialPressures = [];
         }
 
-        if (this.tightestFinancial === undefined && !resultIsOkay)
+        if (this.tightestFinancial === undefined)
         {
-            console.log("handleSimResult: impossible result with no saved viable sim");
+            log("handleSimResult: no saved viable sim, try making things easier", "DifficultyAdjusterInfo");
             this.canAlterStartingCash = true;
             // Try to make things easier until we get some state that works
             if (this.adjustSettingsForDifficulty(-10, undefined) == SimulationStatusReport.OK)
             {
                 this.canAlterStartingCash = false;
                 return SimulationStatusReport.OK;
-            }   
+            }
+            // If we got something the sim could complete, work with it, even though it is more restricted than asked for.
+            if (result !== SimulationStatusReport.IMPOSSIBLE)
+            {
+                this.tightestFinancial = result.averageEndMonthCash;
+                this.bestSimulation = result;
+                this.finalSettings = ScenarioSettings.getFinancialPressureSettings();
+                return SimulationStatusReport.COMPLETE;
+            }
             // Can't redure more pressure? This scenario is unplayable
             return SimulationStatusReport.IMPOSSIBLE;
         }
@@ -410,8 +421,10 @@ export class DifficultyAdjuster
         if (!resultIsOkay && this.lastFinancialPressure !== undefined)
         {
             ScenarioSettings.adjustSettingsForFinancialPressure(this.lastFinancialPressure, -1*this.lastDifficultyAdjustment, "add");
-            console.log(`handleSimResult: increase went too far, undoing: ${this.lastFinancialPressure} = ${ScenarioSettings.getValueFromFinancialPressure(this.lastFinancialPressure)}`);
+            log(`handleSimResult: increase went too far, undoing: ${this.lastFinancialPressure} = ${ScenarioSettings.getValueFromFinancialPressure(this.lastFinancialPressure)}`, "DifficultyAdjusterInfo");
             this.unadjustableFinancialPressures.push(this.lastFinancialPressure);
+            // Clear this to avoid potentially "undoing" the same thing a second time, which had some very buggy consequences
+            this.lastFinancialPressure = undefined;
         }
 
         while (true)
@@ -421,7 +434,7 @@ export class DifficultyAdjuster
                 return SimulationStatusReport.OK;
             }
 
-            if ((this.adjustmentStep > 32 && this.mode == "coarse") || this.adjustmentStep > 1 && this.mode == "fine")
+            if ((this.adjustmentStep > 32 && this.mode == "coarse") || (this.adjustmentStep > 1 && this.mode == "fine"))
             {
                 this.adjustmentStep = Math.max(1, Math.floor(this.adjustmentStep/2));
                 this.unadjustableFinancialPressures = [];
@@ -501,8 +514,14 @@ export class DifficultyAdjuster
         }
         if (possiblePressures.length == 0)
         {
-            console.log("No possible pressures, can't increase further");
+            log("No possible pressures, can't increase further", "DifficultyAdjusterInfo");
             return SimulationStatusReport.IMPOSSIBLE;
+        }
+        // In coarse mode for repay loan, we need to push the initial debt up a bit
+        // else we might not actually have any loan to really repay!
+        if (this.mode == "coarse" && ScenarioSettings.objectiveType == "repayLoanAndParkValue" && possiblePressures.indexOf("initialdebt") > -1)
+        {
+            possiblePressures = ["initialdebt"];
         }
         let totalWeight = possiblePressures.reduce<number>((accumulator: number, current: FinancialPressure) => {
             let thisWeight = this.financialPressureWeights[current];
@@ -510,7 +529,7 @@ export class DifficultyAdjuster
             { 
                 thisWeight = context.getRandom(1, 11);
                 this.financialPressureWeights[current] = thisWeight;
-                console.log(`Random weight for financial pressure ${current} = ${thisWeight}`);
+                log(`Random weight for financial pressure ${current} = ${thisWeight}`, "DifficultyAdjusterInfo");
             }
             return accumulator + thisWeight;
         }, 0);
@@ -530,7 +549,6 @@ export class DifficultyAdjuster
     // Return: true if we managed to adjust settings, false if we can't
     adjustSettingsForDifficulty(amount: number, financialPressure: FinancialPressure | undefined): SimulationStatusReport.OK | SimulationStatusReport.IMPOSSIBLE
     {
-        this.lastDifficultyAdjustment = amount;
         if (financialPressure === undefined)
         {
             let toAdjust = this.getRandomFinancialPressureToAdjust(amount);
@@ -544,13 +562,13 @@ export class DifficultyAdjuster
             }
         }
         let actualAmount = this.canAdjustPressure(financialPressure, amount) * FinancialPressureParams[financialPressure].step;
+        this.lastDifficultyAdjustment = actualAmount;
         if (actualAmount == 0)
         {
             return SimulationStatusReport.IMPOSSIBLE;
         }
         ScenarioSettings.adjustSettingsForFinancialPressure(financialPressure, actualAmount, "add");
-        console.log("Adjust pressure " + financialPressure + " by " + actualAmount + ", now " + ScenarioSettings.getValueFromFinancialPressure(financialPressure));
-        this.lastDifficultyAdjustment = actualAmount;
+        log("Adjust pressure " + financialPressure + " by " + actualAmount + ", now " + ScenarioSettings.getValueFromFinancialPressure(financialPressure), "DifficultyAdjusterInfo");
         this.lastFinancialPressure = financialPressure;
         return SimulationStatusReport.OK;
     }
@@ -598,31 +616,32 @@ export class DifficultyAdjuster
                 {
                     if (this.bestSimulation !== undefined)
                     {
+                        ScenarioSettings.loadFinancialPressureSettings(this.finalSettings);
+                        setParkStorageKey("SimAverageMonthlyCash", this.bestSimulation.averageEndMonthCash);
+                        setParkStorageKey("TargetSimAverageMonthlyCash", getConfigOption("CashTightness"));
                         setParkStorageKey<string[][]>("SimActivityLog", this.bestSimulation.activityLog);
-                        console.log(`Best sim average cash on hand: ${this.bestSimulation.averageEndMonthCash}`);
+                        log(`Best sim average cash on hand: ${this.bestSimulation.averageEndMonthCash}`, "DifficultyAdjusterInfo");
                         // This is the best place to pull anything out of the final simulation that we might want to keep
-                        let unownedToOwnedTilesNeeded = this.bestSimulation.totalLandBought - (MapAnalysis.buyableLand + MapAnalysis.buyableRights + ScenarioSettings.numOwnedTilesToBuyable);
-                        if (unownedToOwnedTilesNeeded > 0)
+                        let unownedToBuyableTilesNeeded = this.bestSimulation.totalLandBought - (MapAnalysis.buyableLand + MapAnalysis.buyableRights + ScenarioSettings.numOwnedTilesToBuyable);
+                        log(`Sim bought: ${this.bestSimulation.totalLandBought} tiles, with ${MapAnalysis.buyableLand + MapAnalysis.buyableRights} available by default and ${ScenarioSettings.numOwnedTilesToBuyable} forced we think we'd need ${unownedToBuyableTilesNeeded} unowneds converting`, "DifficultyAdjusterInfo");
+                        if (unownedToBuyableTilesNeeded > 0)
                         {
-                            ScenarioSettings.numUnownedTilesToPurchasable = unownedToOwnedTilesNeeded;
+                            ScenarioSettings.numUnownedTilesToPurchasable = unownedToBuyableTilesNeeded;
                         }
                         if (getConfigOption("ShrinkSpace"))
                         {
                             let excessTiles = (MapAnalysis.adjustedParkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights) - this.bestSimulation.totalLandUsage;
-                            console.log(`Initial state contains ${MapAnalysis.adjustedParkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights} playable tiles`);
-                            console.log(`Sim apparently uses ${this.bestSimulation.totalLandUsage}, so ${excessTiles} need removing`)
+                            excessTiles = Math.floor(excessTiles);
+                            log(`Initial state contains ${MapAnalysis.adjustedParkSize + MapAnalysis.buyableLand + MapAnalysis.buyableRights} playable tiles`, "DifficultyAdjusterInfo");
                             if (excessTiles > 0)
                             {
-                                ScenarioSettings.numOwnableTilesToMakeUnbuyable = Math.floor(excessTiles);
+                                log(`Sim apparently uses ${this.bestSimulation.totalLandUsage}, so ${excessTiles} need removing`, "DifficultyAdjusterInfo")
+                                ScenarioSettings.numOwnableTilesToMakeUnbuyable = excessTiles;
                             }
                         }
                         if (ScenarioSettings.objectiveType == "guestsAndRating")
                         {
                             ScenarioSettings.objectiveQuantity = 50*Math.floor(this.bestSimulation.guestsInPark/50);
-                        }
-                        else if (ScenarioSettings.objectiveType == "repayLoanAndParkValue")
-                        {
-                            // TODO
                         }
                     }                    
                     return SimulationStatusReport.COMPLETE;
@@ -647,11 +666,3 @@ export class DifficultyAdjuster
         return context.formatString("{CURRENCY}", diff);
     }
 }
-
-/*
-Unimplemented:
-
-Park value goals seem to like to repay their loan super early?
-
-Deadlines!
-*/

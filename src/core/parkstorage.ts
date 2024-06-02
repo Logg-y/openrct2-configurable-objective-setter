@@ -12,6 +12,8 @@ const numberOptions =
     "LoanInterestModification",
     "ScenarioLength",
     "ObjectiveQuantity",
+    "SimAverageMonthlyCash",
+    "TargetSimAverageMonthlyCash",
 ] as const;
 const stringOptions: string[] = [];
 const otherOptions =

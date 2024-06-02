@@ -27,6 +27,8 @@ export const StringTable =
     UI_ENTER_NUMERIC_VALUE_PROMPT: "Enter a new numeric value for this setting:",
     UI_MAX: "Maximum",
 
+    OBJECTIVE_FAILED_MESSAGE: "{RED}You have failed to complete your objective within the time limit!",
+
 
     // Main tab
     UI_MAIN_SETTINGS: "{PALEGOLD}Main Settings",
@@ -35,9 +37,8 @@ export const StringTable =
     UI_GUEST_DIFFICULTY_EXTHELP: "The randomiser tries to simulate playing through the scenario while building{NEWLINE}a relatively 'normal' park.{NEWLINE}This setting is the percentage of guest spawns that{NEWLINE}the simulation gets.{NEWLINE}{NEWLINE}Because guests and income are closely connected, a higher{NEWLINE}setting will both require you to attract guests more{NEWLINE}efficiently (keep ahead of soft guest cap) and will also be tighter on cash.",
     UI_GUEST_DIFFICULTY_EXTHELP2: "The simulation will try to make use of what is available.{NEWLINE}{NEWLINE}This includes running advertising, and rushing to research the money{NEWLINE}generating cash machine in pay-per-ride parks. This setting does also{NEWLINE}reduce the amount of guests that the simulation will get from advertising.",
 
-    // Doing things this way prevents the double difficulty slider interactions which seems preferable
     UI_CASH_TIGHTNESS: "Financial Difficulty: ",
-    UI_CASH_TIGHTNESS_TOOLTIP: "Financial pressures will be increased until the average amount of cash the simulation has on hand every month is about this value.",
+    UI_CASH_TIGHTNESS_TOOLTIP: "Financial pressures will be increased until the average amount of cash the simulation has on hand at the end of every month is about this value.",
 
     UI_STARTING_CASH: "Starting Cash: ",
     UI_STARTING_CASH_TOOLTIP: "The amount of cash you start the game with, if you max your loan.",
@@ -60,7 +61,7 @@ export const StringTable =
     UI_OBJECTIVE_WEIGHT_REPAY_LOAN_TOOLTIP: "The weight of repay loan objectives. The ratio of this and the guests by time objective determines the chance of each type. Unlike the vanilla objective, there is a time limit for this objective.",
 
     UI_OBJECTIVE_REPAY_LOAN_FORCE_PAY_PER_RIDE: "Repay loan forces pay per ride",
-    UI_OBJECTIVE_REPAY_LOAN_FORCE_PAY_PER_RIDE_TOOLTIP: "This objective with pay for entry seems a bit boring as optimal play is to stop building a park and optimise guest turnover.",
+    UI_OBJECTIVE_REPAY_LOAN_FORCE_PAY_PER_RIDE_TOOLTIP: "This objective with pay for entry seems a bit boring as optimal play is to optimise guest turnover, build enough of a park that guest count becomes stable and just stop playing the game.",
 
     UI_OBJECTIVE_REPAY_LOAN_REQUIREMENTS: "Repay loan cash machine condition: ",
     UI_OBJECTIVE_REPAY_LOAN_REQUIREMENTS_TOOLTIP: "This objective without a cash machine seems a bit boring as optimal play is to stop expanding and simply optimise guest turnover.",
@@ -94,7 +95,7 @@ export const StringTable =
     UI_LAND_SETTINGS: "{PALEGOLD}Land Settings",
 
     UI_LAND_TILES_PER_100_SGC: "Tiles per 100 soft guest cap: ",
-    UI_LAND_TILES_PER_100_SGC_TOOLTIP: "How many tiles of stuff you expect to build to get 100 soft guest cap.",
+    UI_LAND_TILES_PER_100_SGC_TOOLTIP: "How many tiles of rides/path etc you expect to build to get 100 soft guest cap.",
     UI_LAND_TILES_PER_100_SGC_EXTHELP: "This determines how dense a park you will be expected to build. The{NEWLINE}measurement is how many tiles are needed for 100 soft guest cap.{NEWLINE}This is further adjusted if factors like harder guest generation or forbidden{NEWLINE}high construction are enabled.{NEWLINE}{NEWLINE}The simulation isn't allowed to increase soft guest cap beyond{NEWLINE}how much space is available. 'Expand buyable land' will increase this{NEWLINE}dramatically, potentially allowing it to cover the entire map.",
 
     UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN: "Tiles per 100 soft guest cap (harder guest generation): ",
@@ -109,10 +110,10 @@ export const StringTable =
     UI_LAND_SHRINK_SPACE_TOOLTIP: "This option will remove buyable/owned land that the simulation did not need in order to complete the scenario. If this scenario has more than one entrance, making sure that they are joined by path/rides might be needed to ensure they can still connect to each other.",
 
     UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS: "Park entrance protection radius: ",
-    UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS_TOOLTIP: "Tiles within this distance of a park entrance cannot have their ownership states changed.",
+    UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS_TOOLTIP: "Owned or buyable tiles within this distance of a park entrance cannot have their ownership states changed.",
 
     UI_LAND_PARK_FEATURE_PROTECTION_RADIUS: "Path/ride protection radius: ",
-    UI_LAND_PARK_FEATURE_PROTECTION_RADIUS_TOOLTIP: "Tiles inside the park within this distance of a piece of currently existing path or ride cannot have their ownership states changed.",
+    UI_LAND_PARK_FEATURE_PROTECTION_RADIUS_TOOLTIP: "Owned tiles inside the park within this distance of a piece of currently existing path or ride cannot have their ownership states changed.",
 
     // Financial settings
     UI_FINANCIAL_SETTINGS: "{PALEGOLD}Financial Pressure Settings",
@@ -228,7 +229,7 @@ export const StringTable =
     UI_WORKING: "{PALEGOLD}Working...",
     UI_WORKING_UNPAUSE: "The game must be UNPAUSED for this to progress.",
     UI_WORKING_STAGE_PROGRESS: "Stage progress: ",
-    UI_WORKING_DIFFICULTYSIM_DIFFERENCE: "Trying to match requested average cash on hand; current: ",
+    UI_WORKING_DIFFICULTYSIM_DIFFERENCE: "Trying to match requested average cash on hand;{NEWLINE}current is over by: ",
     UI_WORKING_DIFFICULTYSIM_NO_VALID: "Trying to find completable settings...",
 
     RANDOMISER_STATE_NOT_STARTED: "Not started.",
@@ -243,6 +244,8 @@ export const StringTable =
     RANDOMISER_STATE_SCENARIO_IN_PROGRESS: "Scenario in progress!",
     RANDOMISER_STATE_FAILED: "Found no way to make a completable scenario with given settings.",
     RANDOMISER_STATE_RUINED: "Ruined: don't save/load a game while running!",
+
+    UI_COULD_NOT_ADJUST_FOR_TARGET_CASH: "The simulation for this scenario had an average of {CURRENCY}{NEWLINE}at the end of every month,{CURRENCY} lower than was{NEWLINE}requested. It will be tighter on cash than was asked for.",
 
     UI_OBJECTIVE_HEADING: "{PALEGOLD}Objective Info",
     UI_OBJECTIVE: "Objective: ",
@@ -268,6 +271,7 @@ export const StringTable =
 
     UI_SIMULATION_INFO: "{PALEGOLD}Simulation Info",
     UI_SIMULATION_EXAMINE_DESCRIPTION: "This is the output of the difficulty simulation that gave rise to the{NEWLINE}modified settings. It offers a month by month view of what it 'did'.",
+    UI_SIMULATION_AVERAGE_CASH: "The simulation had an average of {CURRENCY} at the end of every month,{NEWLINE}{CURRENCY} greater than the target of {CURRENCY}.",
     UI_SIMULATION_ADJUST_MONTH: "Month: ",
     UI_SIMULATION_ADJUST_YEAR: "Year: ",
 

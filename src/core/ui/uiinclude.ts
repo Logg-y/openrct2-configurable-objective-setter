@@ -223,7 +223,7 @@ export function storedNumberSpinner(params: StoredNumberSpinnerParams)
             {
                 desc = desc + `{NEWLINE}${rangeString}`;
             }
-            desc + desc + `{NEWLINE}${StringTable.UI_DEFAULT} ${options.defaultvalue}`
+            desc = desc + `{NEWLINE}${StringTable.UI_DEFAULT}${options.defaultvalue}`;
             ui.showTextInput(
                 {
                     title: StringTable.UI_ENTER_VALUE,

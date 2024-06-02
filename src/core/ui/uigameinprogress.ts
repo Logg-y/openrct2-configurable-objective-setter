@@ -23,11 +23,18 @@ const MainTabElements: PossibleTabElement[] = [
         text: "{PALEGOLD}"+StringTable.RANDOMISER_STATE_SCENARIO_IN_PROGRESS,
     }); },
     () => { 
+        let simValue = getParkStorageKey("SimAverageMonthlyCash", 0);
+        let targetValue = getParkStorageKey("TargetSimAverageMonthlyCash", 0);
+        let diff = simValue - targetValue;
+        if (diff >= 0) return undefined;
+        return label({text:context.formatString(StringTable.UI_COULD_NOT_ADJUST_FOR_TARGET_CASH, simValue, diff), height:36});
+    },
+    () => { 
         let labelText = StringTable.UI_OBJECTIVE;
         let height = 14;
         if (scenario.objective.type == "guestsAndRating")
         {
-            labelText += context.formatString(formatTokens(StringTable.UI_OBJECTIVE_GUESTS_IN_PARK, String(scenario.objective.guests)), scenario.objective.year*8);
+            labelText += context.formatString(formatTokens(StringTable.UI_OBJECTIVE_GUESTS_IN_PARK, String(scenario.objective.guests)), getParkStorageKey("ScenarioLength", 1)*8 - 1);
         }
         else if (scenario.objective.type == "repayLoanAndParkValue")
         {
@@ -159,16 +166,18 @@ function validateYear(value: number, adjust: number)
     updateSimLogEntry();
 }
 
+var simulationAverageCashStore = store<string>("")
+
 const simTabContent = [
     label({text:StringTable.UI_SIMULATION_INFO}),
     label({text: StringTable.UI_SIMULATION_EXAMINE_DESCRIPTION, height: 25}),
+    label({text: simulationAverageCashStore, height: 25}),
     horizontal([label({text:StringTable.UI_SIMULATION_ADJUST_MONTH}),
         spinner({
             value: twoway(GameInProgressSimCurrentMonthStore),
             width: 100,
             format: (val: number) => { return context.formatString("{MONTH}", val % 8); },
             onChange: (val: number, adjust: number) => {
-                console.log(`val ${val} adj ${adjust}`);
                 if (adjust > 0 && val > 7)
                 {
                     GameInProgressSimCurrentMonthStore.set(0);
@@ -224,7 +233,9 @@ function buildGameInProgressUITemplate(): WindowTemplate
             }),
         ],
     }
-
+    let simCash = getParkStorageKey("SimAverageMonthlyCash", 0);
+    let target = getParkStorageKey("TargetSimAverageMonthlyCash", 0);
+    simulationAverageCashStore.set(context.formatString(StringTable.UI_SIMULATION_AVERAGE_CASH, simCash, simCash-target, target));
     let window = tabwindow(template);
     builtGameInProgressUITemplate = window;
     return window;

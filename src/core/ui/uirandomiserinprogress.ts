@@ -48,7 +48,7 @@ const UIRandomiser = window({
         label({text:StringTable.UI_WORKING}),
         label({text:StringTable.UI_WORKING_UNPAUSE}),
         label({text:randomiserStateText}),
-        label({text:randomiserProgressText}),
+        label({text:randomiserProgressText, height:25}),
     ],
     onUpdate: () => 
         {

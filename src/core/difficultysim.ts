@@ -20,6 +20,10 @@ type AdvertisingCampaign = "freeEntry" | "freeRide" | "halfPriceEntry" | "freeFo
 
 // See also: comment at the top of difficultysimmanager.ts
 
+// At high financial pressures it can really grind itself into the ground and never get going
+// That's not fun!
+const minFinalGuests = 500;
+
 type SpendingStrategy = "guestcount" | "profit";
 
 //const monthDays = [31, 30, 31, 30, 31, 31, 30, 31];
@@ -654,6 +658,11 @@ export class DifficultySim
         {
             this.lowestCashAvailable = realCashAvailable;
         }
+        if (this.guestsInPark < minFinalGuests && this.monthsLeft == 0)
+        {
+            this.thisMonthActivityLog.push(context.formatString("Nonviable: too few guests", this.cashAvailable));
+            return false;
+        }
         return true;
     }
 
@@ -679,7 +688,6 @@ export class DifficultySim
     {
         this.entryTicketsThisMonth = 0;
         this.lastMonthCashDeltaWithoutRideTickets = 0;
-        this.thisMonthActivityLog.push("======================");
         this.thisMonthActivityLog.push(context.formatString(`Begin month: {MONTHYEAR}, strategy = ${strategy}`, this.monthsCompleted));
         log(`Begin month ${this.monthsCompleted}`, "IndividualSim");
         let cashMachineAvailable = ScenarioSettings.cashMachineMonth !== undefined && this.monthsCompleted >= ScenarioSettings.cashMachineMonth;
@@ -695,6 +703,11 @@ export class DifficultySim
         // But really for difficulty purposes we care about how little we "feel" like we have on hand, so pretend the amount we can withdraw doesn't exist
         this.totalEndMonthCash += this.cashAvailable;
         this.averageEndMonthCash = this.totalEndMonthCash / this.monthsCompleted;
+        // Without this line, it looks like the sim can be cheating for repay loan
+        if (this.monthsLeft == 0)
+        {
+            this.thisMonthActivityLog.push(context.formatString("Final cash minus loan = {CURRENCY}", this.cashAvailable - this.unrepaidLoan));
+        }
         this.updateObjectiveMetric();
         this.checkDensityLimit();
         this.activityLog.push(this.thisMonthActivityLog);
@@ -705,7 +718,7 @@ export class DifficultySim
     {
         let naturalGuestGeneration = this.getNaturalGuestGeneration();
         let idealSoftGuestCapIncrease = Math.max(0, (this.guestsInPark + naturalGuestGeneration.maximum) - this.softGuestCap);
-        //this.activityLog.push(`guests in park ${this.guestsInPark} + max gen ${naturalGuestGeneration.maximum} = ${this.guestsInPark + naturalGuestGeneration.maximum} - sgc ${this.softGuestCap} -> ${idealSoftGuestCapIncrease}`);
+        //this.thisMonthActivityLog.push(`guests in park ${this.guestsInPark} + max gen ${naturalGuestGeneration.maximum} = ${this.guestsInPark + naturalGuestGeneration.maximum} - sgc ${this.softGuestCap} -> ${idealSoftGuestCapIncrease}`);
         let costOfMaximisingSoftGuestCap = this.getCostOfAdditionalSoftGuestCap(idealSoftGuestCapIncrease);
 
         // To emphasise the long term reward of this option, we sort of have to consider the value we get 
@@ -835,7 +848,7 @@ export class DifficultySim
                         }
                         
                         this.softGuestCap += opt.extraGuests;
-                        this.thisMonthActivityLog.push(context.formatString(`Spent {CURRENCY} on building rides and {CURRENCY} buying land to fit them (${this.availableLandForBuilding} land left). SGC increased by ${opt.extraGuests} to ${this.softGuestCap}`, opt.rideCost, opt.landCost));
+                        this.thisMonthActivityLog.push(context.formatString(`Spent {CURRENCY} on rides and {CURRENCY} buying land to fit (${this.availableLandForBuilding.toFixed(0)} land left). SGC +${opt.extraGuests} to ${this.softGuestCap}`, opt.rideCost, opt.landCost));
                         this.cashAvailable -= opt.cost;
                         this.lastMonthCashDeltaWithoutRideTickets -= opt.cost;
                     }

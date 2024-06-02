@@ -2,7 +2,7 @@ import { pluginversion } from "../../util/pluginversion";
 import { tab, tabwindow, label, groupbox, horizontal, button } from "openrct2-flexui";
 import { storedNumberSpinner, storedCheckbox, storedDropdown, yesNoBox } from "./uiinclude";
 import { StringTable } from "../../util/strings";
-import { RandomiserState, RandomiserStates, randomiser } from "../randomisermain";
+import { randomiser } from "../randomisermain";
 import { saveStoreMap, loadStoreMap } from "../sharedstorage";
 import { UIRandomiserInProgress } from "./uirandomiserinprogress";
 
@@ -70,7 +70,7 @@ const MainTab = [
 		tooltip: StringTable.UI_GUEST_DIFFICULTY_TOOLTIP,
 		extendedhelp: StringTable.UI_GUEST_DIFFICULTY_EXTHELP,
 		extendedhelp2: StringTable.UI_GUEST_DIFFICULTY_EXTHELP2,
-		defaultvalue: 50,
+		defaultvalue: 30,
 		minimum: 5,
 		maximum: 2000,
 		step: 5,
@@ -79,7 +79,7 @@ const MainTab = [
 		storekey: "CashTightness",
 		prompt: StringTable.UI_CASH_TIGHTNESS,
 		tooltip: StringTable.UI_CASH_TIGHTNESS_TOOLTIP,
-		defaultvalue: 350000,
+		defaultvalue: 300000,
 		formatCurrency: true,
 		minimum: 0,
 		step: 5000,
@@ -128,11 +128,6 @@ const MainTab = [
 			height: 20,
 			onClick: () => {
 				UIPregameTemplate.close();
-				if (RandomiserState !== RandomiserStates.NOT_STARTED && RandomiserState !== RandomiserStates.RANDOMISATION_FAILED)
-				{
-					ui.showError(StringTable.ERROR, StringTable.UI_ERROR_RANDOMISATION_ALREADY_STARTED)
-					return;
-				}
 				randomiser();
 				UIRandomiserInProgress();
 				//let manager = new DifficultySimManager;
@@ -179,7 +174,7 @@ const ObjectiveRestrictionTab = [
 		}),
 		storedDropdown({
 			storekey: "RepayLoanCashMachineSetting",
-			defaultvalue: 1,
+			defaultvalue: 2,
 			items: [StringTable.UI_OBJECTIVE_REPAY_LOAN_CASH_MACHINE_DEFAULT, StringTable.UI_OBJECTIVE_REPAY_LOAN_CASH_MACHINE_ALWAYS, StringTable.UI_OBJECTIVE_REPAY_LOAN_CASH_MACHINE_IF_UNRESEARCHABLE],
 		})
 	]),
@@ -253,7 +248,7 @@ const LandTab = [
 		prompt: StringTable.UI_LAND_TILES_PER_100_SGC,
 		tooltip: StringTable.UI_LAND_TILES_PER_100_SGC_TOOLTIP,
 		extendedhelp: StringTable.UI_LAND_TILES_PER_100_SGC_EXTHELP,
-		defaultvalue: 170,
+		defaultvalue: 250,
 		minimum: 1,
 		maximum: 10000,
 		step: 1,
@@ -264,7 +259,7 @@ const LandTab = [
 		prompt: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN,
 		tooltip: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_TOOLTIP,
 		extendedhelp: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_EXTHELP,
-		defaultvalue: 400,
+		defaultvalue: 550,
 		minimum: 1,
 		maximum: 10000,
 		step: 1,
@@ -274,7 +269,7 @@ const LandTab = [
 		storekey: "ParkEntranceProtectionRadius",
 		prompt: StringTable.UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS,
 		tooltip: StringTable.UI_LAND_PARK_ENTRANCE_PROTECTION_RADIUS_TOOLTIP,
-		defaultvalue: 15,
+		defaultvalue: 20,
 		minimum: 1,
 		maximum: 1000,
 		step: 1,
@@ -283,7 +278,7 @@ const LandTab = [
 	storedNumberSpinner({
 		storekey: "ParkFeatureProtectionRadius",
 		prompt: StringTable.UI_LAND_PARK_FEATURE_PROTECTION_RADIUS,
-		tooltip: StringTable.UI_LAND_PARK_FEATURE_PROTECTION_RADIUS,
+		tooltip: StringTable.UI_LAND_PARK_FEATURE_PROTECTION_RADIUS_TOOLTIP,
 		defaultvalue: 3,
 		minimum: 1,
 		maximum: 1000,
@@ -314,7 +309,7 @@ const FinancialTab = [
 		tooltip: StringTable.UI_FINANCIAL_DIFFICULTY_METHODS_MIN_TOOLTIP,
 		defaultvalue: 1,
 		minimum: 0,
-		maximum: 5,
+		maximum: 4,
 		step: 1,
 	}),
 	storedNumberSpinner({
@@ -330,7 +325,7 @@ const FinancialTab = [
 		storekey: "FinancialDifficultyMinInterestRate",
 		prompt: StringTable.UI_FINANCIAL_MINIMUM_LOAN_INTEREST,
 		tooltip: StringTable.UI_FINANCIAL_MINIMUM_LOAN_INTEREST_TOOLTIP,
-		defaultvalue: 15,
+		defaultvalue: 1,
 		minimum: 0,
 		maximum: 200,
 		step: 1,
@@ -376,7 +371,7 @@ const GuestTab = [
 				storekey: "IntensityPreferenceWeightNone",
 				prompt: StringTable.UI_GUEST_INTENSITY_NO_PREFERENCE,
 				tooltip: StringTable.UI_GUEST_INTENSITY_NO_PREFERENCE_TOOLTIP,
-				defaultvalue: 5,
+				defaultvalue: 18,
 				minimum: 0,
 				maximum: 100,
 				step: 1,
@@ -385,7 +380,7 @@ const GuestTab = [
 				storekey: "IntensityPreferenceWeightHigh",
 				prompt: StringTable.UI_GUEST_INTENSITY_HIGH,
 				tooltip: StringTable.UI_GUEST_INTENSITY_HIGH_TOOLTIP,
-				defaultvalue: 2,
+				defaultvalue: 1,
 				minimum: 0,
 				maximum: 100,
 				step: 1,
@@ -405,10 +400,10 @@ const GuestTab = [
 		storekey: "GuestUmbrellaChance",
 		prompt: StringTable.UI_GUEST_STARTING_UMBRELLA,
 		tooltip: StringTable.UI_GUEST_STARTING_UMBRELLA_TOOLTIP,
-		defaultvalue: 5,
+		defaultvalue: 0,
 		minimum: 0,
 		maximum: 100,
-		step: 1,
+		step: 5,
 	}),
 	storedNumberSpinner({
 		storekey: "GuestNarrowIntensity",
@@ -644,15 +639,15 @@ const UIPregameTemplate = tabwindow(
 			content: GuestTab,
 		}),
 		tab({
+			image: simSettingsTabImage,
+			height: "auto",
+			content: SimulationSettingsTab,
+		}),
+		tab({
 			image: profileTabImage,
 			height: "auto",
 			content: ProfileTab,
 		}),
-		tab({
-			image: simSettingsTabImage,
-			height: "auto",
-			content: SimulationSettingsTab,
-		})
 	],
 });
 

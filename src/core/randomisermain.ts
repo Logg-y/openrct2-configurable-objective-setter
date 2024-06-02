@@ -2,7 +2,7 @@ import { DifficultyAdjuster, SimulationStatusReport } from "./difficultysimmanag
 import { MapAnalysis } from "./maptiles";
 import { ScenarioSettings } from "./scenariosettings";
 import { loadGameplayHooks } from "./hooks";
-import { setParkStorageKey } from "./parkstorage";
+import { getParkStorageKey, setParkStorageKey } from "./parkstorage";
 import { StringTable } from "../util/strings";
 import { log } from "../util/logging";
 
@@ -123,7 +123,6 @@ function _tickRandomiser()
     }
     else if (RandomiserState == RandomiserStates.DIFFICULTYSIM_FINISHED)
     {
-        ScenarioSettings.loadFinancialPressureSettings(ActiveDifficultyManager.finalSettings);
         RandomiserState = RandomiserStates.LANDOWNERSHIP_ASSIGNMENT;
         // This object might still have a bunch of rather large arrays attached to it
         // Hopefully free them up
@@ -188,6 +187,12 @@ function _tickRandomiser()
 
 export function randomiser()
 {
+    RandomiserState = getParkStorageKey("RandomisationState", RandomiserStates.NOT_STARTED);
+    if (RandomiserState !== RandomiserStates.NOT_STARTED && RandomiserState !== RandomiserStates.RANDOMISATION_FAILED)
+    {
+        ui.showError(StringTable.ERROR, StringTable.UI_ERROR_RANDOMISATION_ALREADY_STARTED)
+        return;
+    }
     if (RandomiserTickUpdateHook === undefined)
     {
         RandomiserTickUpdateHook = context.subscribe("interval.tick", _tickRandomiser);

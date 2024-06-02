@@ -2,6 +2,7 @@
 // The hook used to spread the randomisation load over multiple ticks is NOT handled here, see randomisermain.ts
 // This is for all the stuff that affects routine gameplay rather than the one-off randomisation process
 
+import { StringTable } from "../util/strings";
 import { getParkStorageKey } from "./parkstorage"
 
 const IntensityPreferencesNeutral = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -64,8 +65,11 @@ function applyInterestModificationHook()
     let interestMod = getParkStorageKey("LoanInterestModification", 0);
     if (interestMod != 0)
     {
+        let sign = interestMod > 0 ? 1 : -1;
+        let absInterestMod = Math.abs(interestMod);
         context.registerAction("ConfigurableObjectiveSetterLoanInterest", (_) => { return {}}, (_) => {
-            let weeklyInterest = (park.bankLoan * 5 * interestMod) >>> 14;
+            // This bitshift goes very wrong with a negative interest modifier!
+            let weeklyInterest = sign * ((park.bankLoan * 5 * absInterestMod) >>> 14);
             return {cost: weeklyInterest, expenditureType: "interest"};
         })
 
@@ -78,11 +82,28 @@ function applyInterestModificationHook()
     } 
 }
 
+var objectiveDeadlineHookHandle: undefined | IDisposable = undefined;
+
+function objectiveDeadlineHook()
+{
+    if (scenario.status == "failed" || scenario.status == "completed")
+    {
+        objectiveDeadlineHookHandle?.dispose();
+    }
+    else if (date.year > getParkStorageKey("ScenarioLength", 1))
+    {
+        objectiveDeadlineHookHandle?.dispose();
+        scenario.status = "failed";
+        park.postMessage(StringTable.OBJECTIVE_FAILED_MESSAGE);
+    }
+}
+
 export function loadGameplayHooks()
 {
     if (getParkStorageKey("GuestNarrowIntensity", false)) { context.subscribe("interval.tick", guestNarrowIntensityHook); }
     if (getParkStorageKey("GuestUmbrellaChance", 0) > 0 ) { context.subscribe("guest.generation", guestUmbrellaChanceHook); }
     if (getParkStorageKey("GuestInitialCash", park.guestInitialCash) != park.guestInitialCash ) { context.subscribe("guest.generation", guestInitialCashHook); }
+    if (scenario.status == "inProgress") { objectiveDeadlineHookHandle = context.subscribe("interval.day", objectiveDeadlineHook); }
     applyInterestModificationHook();
     console.log("Configurable Objective Setter: loaded gameplay hooks");
 }

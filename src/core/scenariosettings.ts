@@ -31,7 +31,7 @@ export const FinancialPressureParams: Record<FinancialPressure, FinancialPressur
     {
         // ScenarioSettings.rollRandom overwrites min bsaed on config
         "min": 1,
-        "max": 150,
+        "max": 100,
         "step": 0.1,
     },
     "landcost":
@@ -306,6 +306,7 @@ export var ScenarioSettings: ScenarioSettingsType =
             if (eligiblePressures[pickedIndex] == "forcebuyland") 
             {
                 this.financialPressures.push("landcost");
+                this.landPrice = FinancialPressureParams["landcost"].min ?? 100;
                 numFinancialPressures++;
             }
         }
@@ -412,7 +413,9 @@ export var ScenarioSettings: ScenarioSettingsType =
         setParkStorageKey("GuestUmbrellaChance", this.umbrellaChance);
         setParkStorageKey("GuestNarrowIntensity", this.narrowIntensity);
         setParkStorageKey("GuestInitialCash", this.guestInitialCash);
-        setParkStorageKey("LoanInterestModification", this.loanInterest - getConfigOption("ScenarioInterestRate"));
+        let loanMod = this.loanInterest - getConfigOption("ScenarioInterestRate");
+        if (Math.abs(loanMod) < 0.0001) { loanMod = 0; }
+        setParkStorageKey("LoanInterestModification", loanMod);
         setParkStorageKey("ScenarioLength", this.scenarioLength);
         setParkStorageKey("ObjectiveQuantity", this.objectiveQuantity);
     }

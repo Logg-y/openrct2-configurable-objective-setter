@@ -104,7 +104,7 @@ interface MapAnalysis
      * @return {*}  A string detailing what percentage of the current operation is complete, eg "50.4%"
      */
     getProgress(): string;
-    
+
 }
 
 const SquaresPerTick = 400;
@@ -252,13 +252,14 @@ export const MapAnalysis: MapAnalysis =
                     }
                     else if (element.type === 'surface')
                     {
+                        // Some tiles have conflicting bitmasks. Assumed owned > ownable in all cases
                         isTileOwned = !!(element.ownership & OWNERSHIP_OWNED);
-                        isTileOwnable = !!(element.ownership & OWNERSHIP_TILE_IS_OWNABLE);
-                        if (element.ownership & OWNERSHIP_AVAILABLE)
+                        isTileOwnable = !!(element.ownership & OWNERSHIP_TILE_IS_OWNABLE) && !isTileOwned;
+                        if (element.ownership & OWNERSHIP_AVAILABLE && !isTileOwned)
                         {
                             this.buyableLand++;
                         }
-                        else if (element.ownership & OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE)
+                        else if (element.ownership & OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE && !isTileOwned)
                         {
                             this.buyableRights++;
                         }
@@ -574,13 +575,18 @@ export const MapAnalysis: MapAnalysis =
 
     adjustTileOwnershipStates()
     {
+        // A few bugs seem to be capable of causing this - and the results are not pretty (eg turning the whole map buyable for no good reason)
+        if (ScenarioSettings.numOwnedTilesToBuyable < 0) { log(`numOwnedTilesToBuyable was ${ScenarioSettings.numOwnedTilesToBuyable}!`, "Error"); ScenarioSettings.numOwnedTilesToBuyable = 0; }
+        if (ScenarioSettings.numUnownedTilesToPurchasable < 0) { log(`numUnownedTilesToPurchasable was ${ScenarioSettings.numUnownedTilesToPurchasable}!`, "Error"); ScenarioSettings.numUnownedTilesToPurchasable = 0;  }
+        if (ScenarioSettings.numOwnableTilesToMakeUnbuyable < 0) { log(`numOwnableTilesToMakeUnbuyable was ${ScenarioSettings.numOwnableTilesToMakeUnbuyable}!`, "Error"); ScenarioSettings.numOwnableTilesToMakeUnbuyable = 0; }
+
         if (this.totalRequestedTiles == 0)
         {
             this.totalRequestedTiles = ScenarioSettings.numOwnedTilesToBuyable + ScenarioSettings.numUnownedTilesToPurchasable + ScenarioSettings.numOwnableTilesToMakeUnbuyable;
             log(`Change tile ownership: ${ScenarioSettings.numOwnedTilesToBuyable} owned to buyable, ${ScenarioSettings.numUnownedTilesToPurchasable} unowned to buyable, ${ScenarioSettings.numOwnableTilesToMakeUnbuyable} owned to unbuyable`, "Info");
         }
 
-        // This is a LOT laggier, I'm not entirely sure why
+        // This is a LOT laggier than some of the other processes, I'm not entirely sure why
         this.squaresLeft = SquaresPerTick/40;
         let abstractTileConverter = (record: Record<number, CoordsXY[]>, maxToConvert: number, conversionFunction: (tile: Tile) => void, orderFunction=getHighestRecordKey) =>
         {
@@ -621,8 +627,6 @@ export const MapAnalysis: MapAnalysis =
         // It turns out that some tiles in some scenarios (Forest Frontiers!) have multiple bits set in a way that is nonsensical.
         // There's a strip of 5 or so tiles that have 160 = OWNERSHIP_OWNED + OWNERSHIP_AVAILABLE and that's a bit confusing
         // I did have these functions preserve most of the original bitmask, but that seems to cause more problems than it helps
-        
-
         let converted = abstractTileConverter(this.ownedToPurchasableTilesByDistance, ScenarioSettings.numOwnedTilesToBuyable, (tile) =>
         {
             for (const element of tile.elements)
@@ -686,7 +690,7 @@ export const MapAnalysis: MapAnalysis =
         {
             return false;
         }
-
+        
         converted = abstractTileConverter(this.ownableToUnownedTilesByDistance, ScenarioSettings.numOwnableTilesToMakeUnbuyable, (tile) =>
             {
                 for (const element of tile.elements)
