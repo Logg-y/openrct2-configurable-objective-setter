@@ -6,7 +6,7 @@ The range of settings is quite extensive: essentially you set what it is allowed
 
 The default settings are intended to make objectives that are somewhere around the higher difficulty end of the original games' scenarios. These can be altered quite drastically to make things that should only just about be possible by playing "normally", or even beyond.
 
-![Game in progres UI](/img/inprogressui.png)
+![Game in progress UI](/img/inprogressui.png)
 
 Multiplayer is completely untested and something will very likely break, though it could probably be run in singleplayer before hosting the park. I have never played multiplayer OpenRCT2 and have no understanding of the finer points of writing a plugin that works in multiplayer, and I'm not aware of any resources that discuss this. The new scripted conditions might not work in multiplayer, though.
 

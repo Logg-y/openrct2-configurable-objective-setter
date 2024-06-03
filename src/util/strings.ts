@@ -1,6 +1,10 @@
 // If anyone ever wanted to localise this, most of the important userfacing text is a property of an object
 // that could be switched out on the fly
-
+/**
+ * @param {string} template A string containing numbered zero-indexed tokens in braces, eg {0}, {1}
+ * @param {...string[]} replacements The first element of this array replaces all occurences of {0}, the second replaces all instances of {1}...
+ * @return The string with replacements made.
+ */
 export function formatTokens(template: string, ...replacements: string[])
 {
     for (let i=0; i<replacements.length; i++)
