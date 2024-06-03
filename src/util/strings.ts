@@ -33,12 +33,12 @@ export const StringTable =
     // Main tab
     UI_MAIN_SETTINGS: "{PALEGOLD}Main Settings",
     UI_GUEST_DIFFICULTY: "Difficulty: ",
-    UI_GUEST_DIFFICULTY_TOOLTIP: "What percentage of the estimated theoretical maximum possible number of guests is required to beat the scenario.",
+    UI_GUEST_DIFFICULTY_TOOLTIP: "What percentage of guests the difficulty simulation actually gets. A value of 50% means that the difficulty simulation tries to 'play' through and 'complete' the scenario with every other guest not spawning, which will result in a much easier objective than if this were set to 100%.",
     UI_GUEST_DIFFICULTY_EXTHELP: "The randomiser tries to simulate playing through the scenario while building{NEWLINE}a relatively 'normal' park.{NEWLINE}This setting is the percentage of guest spawns that{NEWLINE}the simulation gets.{NEWLINE}{NEWLINE}Because guests and income are closely connected, a higher{NEWLINE}setting will both require you to attract guests more{NEWLINE}efficiently (keep ahead of soft guest cap) and will also be tighter on cash.",
     UI_GUEST_DIFFICULTY_EXTHELP2: "The simulation will try to make use of what is available.{NEWLINE}{NEWLINE}This includes running advertising, and rushing to research the money{NEWLINE}generating cash machine in pay-per-ride parks. This setting does also{NEWLINE}reduce the amount of guests that the simulation will get from advertising.",
 
     UI_CASH_TIGHTNESS: "Financial Difficulty: ",
-    UI_CASH_TIGHTNESS_TOOLTIP: "Financial pressures will be increased until the average amount of cash the simulation has on hand at the end of every month is about this value.",
+    UI_CASH_TIGHTNESS_TOOLTIP: "Financial pressures will be increased until the average amount of cash the simulation has on hand at the end of every month is about this value. This means that smaller values are more difficult!",
 
     UI_STARTING_CASH: "Starting Cash: ",
     UI_STARTING_CASH_TOOLTIP: "The amount of cash you start the game with, if you max your loan.",
@@ -199,7 +199,7 @@ export const StringTable =
     UI_SIMSETTINGS_COST_PER_100_SGC_HARD_TOOLTIP: "The amount the simulation thinks 100 soft guest cap should cost beyond the first 1000 with harder guest generation enabled.",
 
     UI_SIMSETTINGS_PARK_ENTRY_FEE_PER_100_SGC: "Max park entry fee per 100 soft guest cap: ",
-    UI_SIMSETTINGS_PARK_ENTRY_FEE_PER_100_SGC_TOOLTIP: "In pay-for-entry parks, the simulation will charge this amount for entry per 100 soft guest cap it has, up to the maximum of the minimum guest starting cash.",
+    UI_SIMSETTINGS_PARK_ENTRY_FEE_PER_100_SGC_TOOLTIP: "In pay-for-entry parks, the simulation will charge this amount for entry per 100 soft guest cap it has, up to the minimum guest starting cash.",
 
     UI_SIMSETTINGS_RIDE_UPKEEP_PER_100_SGC: "Ride running costs per 100 soft guest cap: ",
     UI_SIMSETTINGS_RIDE_UPKEEP_PER_100_SGC_TOOLTIP: "The monthly running costs the simulation expects from rides/stalls that support 100 soft guest cap.",
