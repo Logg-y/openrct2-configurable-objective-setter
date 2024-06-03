@@ -22,7 +22,8 @@ type AdvertisingCampaign = "freeEntry" | "freeRide" | "halfPriceEntry" | "freeFo
 
 // At high financial pressures it can really grind itself into the ground and never get going
 // That's not fun!
-const minFinalGuests = 500;
+// This gets multiplied by the guest difficulty setting!
+const minFinalGuests = 1200;
 
 type SpendingStrategy = "guestcount" | "profit";
 
@@ -658,7 +659,7 @@ export class DifficultySim
         {
             this.lowestCashAvailable = realCashAvailable;
         }
-        if (this.guestsInPark < minFinalGuests && this.monthsLeft == 0)
+        if (this.guestsInPark < minFinalGuests * getConfigOption("GuestDifficulty") && this.monthsLeft == 0)
         {
             this.thisMonthActivityLog.push(context.formatString("Nonviable: too few guests", this.cashAvailable));
             return false;

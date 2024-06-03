@@ -4,6 +4,8 @@ I'm going for making "normal" parks. Game mechanic abuse plays (eg: spamming man
 
 It makes way more sense to me to design around what sort of things a "normal" park will do, rather than one where all the guests are locked to one tile of path or a huge queue for a free transport ride that doesn't go anywhere, or where all the rides are an identical design.
 
+That said, you can probably adjust the parameters of this thing to cater to that if you really wanted to.
+
 # Difficulty
 
 Obviously one or more difficulty sliders seems like a good idea. But to really capture that, what can actually make RCT difficult?
@@ -13,7 +15,7 @@ Obviously one or more difficulty sliders seems like a good idea. But to really c
 
 The two can also be linked, eg no cash machine and pay-for-entry means that your only income is new guests entering. There is then financial incentive to get guests out the park as fast as possible, but taking steps to make them want to leave makes climbing the guest goal harder.
 
-Of the two, the financial pressure seems more interesting to me: for pure guest problems, the answer is "build stuff" and so long as you can afford it and you build it fast enough to outpace your soft guest cap, nothing else really matters.
+Of the two, the financial pressure seems more interesting to me: for pure guest problems, the answer is "build stuff" and so long as you can afford it and you build it fast enough to outpace your soft guest cap, the only other thing that really matters is controlling guest retention.
 
 ## Quantifying sliders
 
@@ -50,7 +52,7 @@ Additionally, the following cannot be failed:
 - Monthly ride/stall profits
 - Repay loan and park value
 
-I am conceptually somewhat against these goals which cannot feasibly be failed.
+I am conceptually somewhat against these goals which cannot feasibly be failed. It does really defeat the point having difficulty settings at all, unless you made the failure case inescapable debt incurred by loan interest or something. But then the other goals can also get that.
 
 ## Novel plugin possibilities
 
@@ -66,7 +68,7 @@ These can be communicated by providing a plugin window for park objectives and u
 
 These can be used to force a time limit on things, eg:
 - X weeks with cash in the red
-- After some specified date, you start to get fined X amount of money due to failing to complete your task in time
+- Forced failure after X date, even for objectives that can't normally be failed
 
 ### New scenario conditions
 
@@ -147,7 +149,7 @@ There are caveats to this. In a fresh park, you can't charge max entry, or maybe
 
 Having both a guest and financial difficulty slider is probably redundant. The guest one alone already governs available cash, and having two sliders that interact together in nonlinear fashion would just be confusing.
 
-Instead, "how much loose cash do you finish with" seems like a much better value.
+Instead, "how much loose cash do you have on average?" seemed like a better gauge of "how tight is this scenario financially"
 
 ## Spending plan review
 
