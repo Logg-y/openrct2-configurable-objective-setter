@@ -155,22 +155,6 @@ function squaredDistanceToClosestInList(testPoint: CoordsXY, list:CoordsXY[])
     //return Math.ceil(Math.sqrt(squaredLowest || NaN));
     return squaredLowest || NaN;
 }
-/**
- * @return {*} The numerically largest key in record
- */
-function getHighestRecordKey<T>(record: Record<number, T>)
-{
-    let keys = Object.keys(record).map((val: string) => Number(val)) as number[];
-    return keys.reduce((accumulator: number, current: number) => { return current > accumulator ? current : accumulator; }, keys[0]);
-}
-/**
- * @return {*} The numerically smallest key in record
- */
-function getLowestRecordKey<T>(record: Record<number, T>)
-{
-    let keys = Object.keys(record).map((val: string) => Number(val)) as number[];
-    return keys.reduce((accumulator: number, current: number) => { return current < accumulator ? current : accumulator; }, keys[0]);
-}
 
 function getRecordKeysAscending<T>(record: Record<number, T>)
 {
