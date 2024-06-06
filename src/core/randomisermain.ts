@@ -195,6 +195,7 @@ export function randomiser()
     }
     if (RandomiserTickUpdateHook === undefined)
     {
+        RandomiserState = RandomiserStates.NOT_STARTED;
         RandomiserTickUpdateHook = context.subscribe("interval.tick", _tickRandomiser);
     }
 }
