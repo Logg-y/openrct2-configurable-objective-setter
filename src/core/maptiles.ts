@@ -70,6 +70,12 @@ interface MapAnalysis
     maxUnownedToPurchasableTiles: number;
     maxOwnableToUnownableTiles: number;
 
+    // It turns out that Object.keys(record) and sorting this repeatedly is quite slow
+    // as the records are not changing, we can just do it once and never again
+    ownedToPurchasableSortedDistances: number[] | undefined,
+    unownedToPurchasableTilesSortedDistances: number[] | undefined,
+    ownableToUnownedTilesSortedDistances: number[] | undefined,
+
     // For the distance calcs it make sense to just build a list of everything and
     // calc the distances at the end
     potentialOwnedToBuyableTiles: CoordsXY[],
@@ -166,6 +172,18 @@ function getLowestRecordKey<T>(record: Record<number, T>)
     return keys.reduce((accumulator: number, current: number) => { return current < accumulator ? current : accumulator; }, keys[0]);
 }
 
+function getRecordKeysAscending<T>(record: Record<number, T>)
+{
+    let keys = Object.keys(record).map((val: string) => Number(val)) as number[];
+    return keys.sort((a, b) => a - b);
+}
+
+function getRecordKeysDescending<T>(record: Record<number, T>)
+{
+    let keys = Object.keys(record).map((val: string) => Number(val)) as number[];
+    return keys.sort((a, b) => -(a - b));
+}
+
 /**
  * @return {*} The Tile's surface element, or undefined if one wasn't found (this maybe isn't possible?)
  */
@@ -196,6 +214,10 @@ export const MapAnalysis: MapAnalysis =
     maxUnownedToPurchasableTiles: 0,
     maxOwnableToUnownableTiles: 0,
 
+    ownedToPurchasableSortedDistances: undefined,
+    unownedToPurchasableTilesSortedDistances: undefined,
+    ownableToUnownedTilesSortedDistances: undefined,
+
     potentialOwnedToBuyableTiles: [],
     potentialUnownedToBuyableTiles: [],
     containsParkEntrance: [],
@@ -211,6 +233,7 @@ export const MapAnalysis: MapAnalysis =
     squaresLeft: 0,
 
     totalRequestedTiles: 0,
+    
 
     
     analyseMap()
@@ -586,15 +609,27 @@ export const MapAnalysis: MapAnalysis =
             log(`Change tile ownership: ${ScenarioSettings.numOwnedTilesToBuyable} owned to buyable, ${ScenarioSettings.numUnownedTilesToPurchasable} unowned to buyable, ${ScenarioSettings.numOwnableTilesToMakeUnbuyable} owned to unbuyable`, "Info");
         }
 
-        // This is a LOT laggier than some of the other processes, I'm not entirely sure why
-        this.squaresLeft = SquaresPerTick/40;
-        let abstractTileConverter = (record: Record<number, CoordsXY[]>, maxToConvert: number, conversionFunction: (tile: Tile) => void, orderFunction=getHighestRecordKey) =>
+        // These operations are seemingly quite expensive, and so doing them once (and keeping them) makes this run a LOT faster
+        // On large maps with a ton of owned land, doing this made this segment run ~100x faster
+        this.squaresLeft = SquaresPerTick;
+
+        if (this.unownedToPurchasableTilesSortedDistances === undefined)
+            this.unownedToPurchasableTilesSortedDistances = getRecordKeysDescending(this.unownedToPurchasableTilesByDistance);
+        if (this.ownedToPurchasableSortedDistances === undefined)
+            this.ownedToPurchasableSortedDistances = getRecordKeysAscending(this.ownedToPurchasableTilesByDistance);
+        if (this.ownableToUnownedTilesSortedDistances === undefined)
+            this.ownableToUnownedTilesSortedDistances = getRecordKeysAscending(this.ownableToUnownedTilesByDistance);
+
+        let abstractTileConverter = (record: Record<number, CoordsXY[]>, maxToConvert: number, conversionFunction: (tile: Tile) => void, sortedKeys: number[]) =>
         {
             let totalConverted = 0;
             let numToConvert = Math.min(this.squaresLeft, maxToConvert);
+            if (numToConvert == 0)
+                return 0;
+
             while (numToConvert > 0)
             {
-                let highestDist = orderFunction(record);
+                let highestDist = sortedKeys.pop();
                 if (highestDist === undefined)
                 {
                     log(`Was asked to change ownership of ${maxToConvert} more tiles than we found were possible`, "Info");
@@ -620,10 +655,15 @@ export const MapAnalysis: MapAnalysis =
                 {
                     delete record[highestDist];
                 }
+                else
+                {
+                    sortedKeys.push(highestDist);
+                }
             }
+			console.log(`converted total ${totalConverted}`);
             return totalConverted;
         };
-
+		console.log(`start owned to buyable: ${ScenarioSettings.numOwnedTilesToBuyable} ${this.squaresLeft}`);
         // It turns out that some tiles in some scenarios (Forest Frontiers!) have multiple bits set in a way that is nonsensical.
         // There's a strip of 5 or so tiles that have 160 = OWNERSHIP_OWNED + OWNERSHIP_AVAILABLE and that's a bit confusing
         // I did have these functions preserve most of the original bitmask, but that seems to cause more problems than it helps
@@ -645,13 +685,13 @@ export const MapAnalysis: MapAnalysis =
                     break;
                 }
             }
-        });
+        }, this.ownedToPurchasableSortedDistances);
         ScenarioSettings.numOwnedTilesToBuyable -= converted;
         if (this.squaresLeft <= 0)
         {
             return false;
         }
-
+		console.log("start unowned to buyable");
         // We already screened tiles in this record - if they contain any path at all, we know we have to make it construction rights
         // not full ownership
         converted = abstractTileConverter(this.unownedToPurchasableTilesByDistance, ScenarioSettings.numUnownedTilesToPurchasable, (tile) =>
@@ -684,13 +724,14 @@ export const MapAnalysis: MapAnalysis =
                         surface.ownership = OWNERSHIP_AVAILABLE;
                     }
                 }
-            }, getLowestRecordKey);
+            }, this.unownedToPurchasableTilesSortedDistances);
         ScenarioSettings.numUnownedTilesToPurchasable -= converted;
         if (this.squaresLeft <= 0)
         {
             return false;
         }
-        
+		
+		console.log("start ownable to notbuyable");
         converted = abstractTileConverter(this.ownableToUnownedTilesByDistance, ScenarioSettings.numOwnableTilesToMakeUnbuyable, (tile) =>
             {
                 for (const element of tile.elements)
@@ -706,14 +747,18 @@ export const MapAnalysis: MapAnalysis =
                         break;
                     }
                 }
-            });
+            }, this.ownableToUnownedTilesSortedDistances);
         ScenarioSettings.numOwnableTilesToMakeUnbuyable -= converted;
         if (this.squaresLeft <= 0)
         {
             return false;
         }
-
         this.totalRequestedTiles = 0;
+
+        this.unownedToPurchasableTilesSortedDistances = undefined;
+        this.ownedToPurchasableSortedDistances = undefined;
+        this.ownableToUnownedTilesSortedDistances = undefined;
+
         return true;
     },
 
