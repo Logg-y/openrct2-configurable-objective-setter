@@ -648,6 +648,7 @@ export class DifficultySim
         if (realCashAvailable < 0)
         {
             this.thisMonthActivityLog.push(context.formatString("Nonviable: available cash = {CURRENCY}", this.cashAvailable));
+            log(context.formatString(`Month ${this.monthsCompleted}: available cash = {CURRENCY}`, this.cashAvailable), "SimFailure");
             //console.log(context.formatString("Nonviable: available cash = {CURRENCY}", this.cashAvailable));
             return false;
         }
@@ -659,9 +660,10 @@ export class DifficultySim
         {
             this.lowestCashAvailable = realCashAvailable;
         }
-        if (this.guestsInPark < minFinalGuests * getConfigOption("GuestDifficulty") && this.monthsLeft == 0)
+        if (this.guestsInPark < minFinalGuests * getConfigOption("GuestDifficulty")/100 && this.monthsLeft == 0)
         {
             this.thisMonthActivityLog.push(context.formatString("Nonviable: too few guests", this.cashAvailable));
+            log(context.formatString(`Month ${this.monthsCompleted}: too few guests = ${this.guestsInPark} vs min ${minFinalGuests * getConfigOption("GuestDifficulty")/100}`, this.cashAvailable), "SimFailure");
             return false;
         }
         return true;
