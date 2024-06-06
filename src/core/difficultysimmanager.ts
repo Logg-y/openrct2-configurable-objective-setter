@@ -427,9 +427,16 @@ export class DifficultyAdjuster
             this.lastFinancialPressure = undefined;
         }
 
+        // In repay loan mode, start by pushing the initial debt up high
+        let forcedPressure: FinancialPressure | undefined = undefined;
+        if (this.mode == "coarse" && ScenarioSettings.objectiveType == "repayLoanAndParkValue")
+        {
+            forcedPressure = "initialdebt";
+        }
+
         while (true)
         {
-            if (this.adjustSettingsForDifficulty(this.adjustmentStep, undefined) === SimulationStatusReport.OK)
+            if (this.adjustSettingsForDifficulty(this.adjustmentStep, forcedPressure) === SimulationStatusReport.OK)
             {
                 return SimulationStatusReport.OK;
             }
@@ -516,12 +523,6 @@ export class DifficultyAdjuster
         {
             log("No possible pressures, can't increase further", "DifficultyAdjusterInfo");
             return SimulationStatusReport.IMPOSSIBLE;
-        }
-        // In coarse mode for repay loan, we need to push the initial debt up a bit
-        // else we might not actually have any loan to really repay!
-        if (this.mode == "coarse" && ScenarioSettings.objectiveType == "repayLoanAndParkValue" && possiblePressures.indexOf("initialdebt") > -1)
-        {
-            possiblePressures = ["initialdebt"];
         }
         let totalWeight = possiblePressures.reduce<number>((accumulator: number, current: FinancialPressure) => {
             let thisWeight = this.financialPressureWeights[current];
