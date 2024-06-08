@@ -425,7 +425,7 @@ const ProfileTab = [
 		defaultvalue: 0,
 		items: [StringTable.UI_PROFILE_1, StringTable.UI_PROFILE_2, StringTable.UI_PROFILE_3],
 		onChange: val => {
-			context.sharedStorage.set<number>("Loggy.ConfigurableObjectiveSetter.ActiveProfileIndex", val);
+			context.sharedStorage.set<number>("ConfigurableObjectiveSetter.ActiveProfileIndex", val);
 		}
 	}),
 	horizontal([

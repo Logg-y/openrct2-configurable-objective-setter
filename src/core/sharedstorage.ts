@@ -106,13 +106,13 @@ type SavedMap = Record<string, number>;
 
 export function loadStoreMap()
 {
-    let index = context.sharedStorage.get<number>("Loggy.ConfigurableObjectiveSetter.ActiveProfileIndex");
+    let index = context.sharedStorage.get<number>("ConfigurableObjectiveSetter.ActiveProfileIndex");
     if (index === undefined)
     {
         index = 1;
     }
     storeMap["ActiveProfile"].set(index);
-    let savedMap = context.sharedStorage.get<SavedMap>("Loggy.ConfigurableObjectiveSetter.Profile" + String(index));
+    let savedMap = context.sharedStorage.get<SavedMap>("ConfigurableObjectiveSetter.Profile" + String(index));
     if (savedMap === undefined)
     {
         return;
@@ -125,7 +125,7 @@ export function loadStoreMap()
         {
             console.log("Purging now unused key " + key);
             delete savedMap[key];
-            context.sharedStorage.set<SavedMap>("Loggy.ConfigurableObjectiveSetter.Profile" + String(index), savedMap);
+            context.sharedStorage.set<SavedMap>("ConfigurableObjectiveSetter.Profile" + String(index), savedMap);
             continue;
         }
         // In shared storage bools become numbers
@@ -150,7 +150,7 @@ export function loadStoreMap()
 
 export function saveStoreMap()
 {
-    let index = context.sharedStorage.get<number>("Loggy.ConfigurableObjectiveSetter.ActiveProfileIndex");
+    let index = context.sharedStorage.get<number>("ConfigurableObjectiveSetter.ActiveProfileIndex");
     if (index === undefined)
     {
         index = 1;
@@ -160,5 +160,5 @@ export function saveStoreMap()
     {
         savedMap[key] = Number(storeMap[key].get());
     }
-    context.sharedStorage.set<SavedMap>("Loggy.ConfigurableObjectiveSetter.Profile" + String(index), savedMap);
+    context.sharedStorage.set<SavedMap>("ConfigurableObjectiveSetter.Profile" + String(index), savedMap);
 }
