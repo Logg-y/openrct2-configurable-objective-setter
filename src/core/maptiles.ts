@@ -7,6 +7,7 @@ Look at the map and see:
 import { ScenarioSettings, FinancialPressureParams } from "./scenariosettings";
 import { getConfigOption } from "./sharedstorage";
 import { log } from "../util/logging";
+import { StringTable, formatTokens } from "../util/strings";
 
 // SurfaceElement.ownership looks like it's going to be a bitmask
 const OWNERSHIP_CONSTRUCTION_RIGHTS_AVAILABLE = 64;
@@ -903,4 +904,31 @@ export const MapAnalysis: MapAnalysis =
         }  
         return (proportion*100).toFixed(1) + "%";
     },
+}
+
+export function getCurrentTilesPer100SGC()
+{
+	let tilesPer100 = "0";
+    if (park.suggestedGuestMaximum > 0)
+    {
+        if (!park.getFlag("difficultGuestGeneration") || park.suggestedGuestMaximum < 1000)
+        {
+            tilesPer100 = (100 * (park.parkSize/park.suggestedGuestMaximum)).toFixed(0);
+        }
+        else
+        {
+            let hardTileMult = 2.5;
+            let modifiedHardContribution = (park.suggestedGuestMaximum-1000)*hardTileMult;
+            let modifiedSGC = 1000 + modifiedHardContribution;
+            let easyProportion = 1000/modifiedSGC;
+            let hardProportion = 1-easyProportion;
+            let expectedHardTiles = (hardProportion * park.parkSize);
+            let expectedEasyTiles = (easyProportion * park.parkSize);
+
+            let expectedEasyPer100SGC = 100*expectedEasyTiles/1000;
+            let expectedHardPer100SGC = 100*expectedHardTiles/(park.suggestedGuestMaximum-1000);
+            return formatTokens(StringTable.UI_PARK_INFO_CURRENT_DENSITY_HARD_GUEST_GEN, expectedEasyPer100SGC.toFixed(0), expectedHardPer100SGC.toFixed(0));
+        }
+    }
+    return formatTokens(StringTable.UI_PARK_INFO_CURRENT_DENSITY, tilesPer100);
 }

@@ -3,6 +3,7 @@ import { tab, tabwindow, label, spinner, horizontal, WindowTemplate, WidgetCreat
 import { StringTable, formatTokens } from "../../util/strings";
 import { getParkStorageKey } from "../parkstorage";
 import { labelWithExtendedHelpWrapper } from "./uiinclude";
+import { getCurrentTilesPer100SGC } from "../maptiles";
 
 // Not all rows will necessarily appear, so we define everything and the order they will appear in
 // along with a function that decides if they appear or not
@@ -210,12 +211,8 @@ let currentDensityStore = store(StringTable.UI_PARK_INFO_CURRENT_DENSITY);
 
 function parkInfoUpdate()
 {
-    let tilesPer100 = "0";
-    if (park.suggestedGuestMaximum > 0)
-    {
-        tilesPer100 = (100 * (park.parkSize/park.suggestedGuestMaximum)).toFixed(0);
-    }
-    currentDensityStore.set(formatTokens(StringTable.UI_PARK_INFO_CURRENT_DENSITY, tilesPer100))
+    let text = getCurrentTilesPer100SGC();
+    currentDensityStore.set(text);
 }
 
 const parkInfoImage: ImageAnimation =
@@ -227,7 +224,7 @@ const parkInfoImage: ImageAnimation =
 
 const parkInfoContent = [
     label({text:StringTable.UI_CURRENT_PARK_INFO}),
-    label({text:currentDensityStore}),
+    label({text:currentDensityStore, height:25}),
 ]
 
 

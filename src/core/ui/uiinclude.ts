@@ -5,7 +5,7 @@ import { storeMap, ConfigOptionNumber, ConfigOptionBoolean } from "../sharedstor
 
 interface MessageBoxParams
 {
-    text: string | string[]
+    text: StringOrCallableToString | StringOrCallableToString[]
     classification?: string,
     width?: number,
     height?: number,
@@ -20,6 +20,8 @@ const MessageBoxParamsDefaults =
     classification: "ParkObjectiveRandomiserMessageBox",
 }
 
+type StringOrCallableToString = string | (() => string);
+
 const messageBoxTitlePadding = 20;
 const messageBoxButtonHeight = 30;
 
@@ -32,34 +34,30 @@ function messageBox(params: MessageBoxParams): void
         let options = {...MessageBoxParamsDefaults, ...params};
         let windowTemplate = options as WindowDesc;
         windowTemplate.widgets = [];
-        if (Array.isArray(options.text))
+        let textStringsArray = options.text;
+        if (!Array.isArray(textStringsArray))
         {
-            let index = 0;
-            for (const text of options.text)
-            {
-                windowTemplate.widgets.push({
-                    type: "label",
-                    x: 0,
-                    y: messageBoxTitlePadding + (index*100),
-                    width: options.width,
-                    height: options.height - (messageBoxButtonHeight + messageBoxTitlePadding),
-                    text: text
-                })
-                index++;
-            }
+            textStringsArray = [textStringsArray];
         }
-        else
+        let textStrings: string[] = textStringsArray.map<string>((item): string =>
+        { 
+            if (typeof item === "function") {
+                return item();
+            }
+            return item;
+        });
+        let index = 0;
+        for (const text of textStrings)
         {
-            windowTemplate["widgets"].push(
-                {
-                    type: "label",
-                    x: 0,
-                    y: messageBoxTitlePadding,
-                    height: options.height - (messageBoxButtonHeight + messageBoxTitlePadding),
-                    width: options.width,
-                    text: options.text,
-                },
-            )
+            windowTemplate.widgets.push({
+                type: "label",
+                x: 0,
+                y: messageBoxTitlePadding + (index*100),
+                width: options.width,
+                height: options.height - (messageBoxButtonHeight + messageBoxTitlePadding),
+                text: text
+            })
+            index++;
         }
 
         windowTemplate["widgets"].push(
@@ -164,7 +162,7 @@ interface StoredNumberSpinnerParams extends SpinnerParams
     storekey: ConfigOptionNumber,
     prompt: string,
     defaultvalue: number,
-    extendedhelp?: string | string[],
+    extendedhelp?: StringOrCallableToString | StringOrCallableToString[],
     decimalPlaces?: number,
     formatCurrency?: boolean,
     formatCurrency2dp?: boolean,

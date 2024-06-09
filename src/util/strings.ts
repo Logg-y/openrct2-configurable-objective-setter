@@ -143,7 +143,7 @@ export const StringTable =
     UI_FINANCIAL_DIFFICULTY_LOAN_INTEREST_TOOLTIP: "Loan interest rate can be adjusted (probably increased) to change the scenario difficulty. Due to limitations this is implemented via plugin and the true value will not be displayed in the finances window.",
 
     UI_FINANCIAL_DIFFICULTY_FORCE_BUY_LAND: "Force buying land to expand",
-    UI_FINANCIAL_DIFFICULTY_FORCE_BUY_LAND_TOOLTIP: "Makes some normally-owned land into buyable land. This means that you must buy land to expand the park. This also might make the land cost more.",
+    UI_FINANCIAL_DIFFICULTY_FORCE_BUY_LAND_TOOLTIP: "Makes some normally-owned land into buyable land. This means that you must buy land to expand the park. This option will also change the cost of land. NOTE: To get good results with this, you will need to set the land usage per 100 soft guest cap to how dense you like your parks to be.",
 
     UI_FINANCIAL_DIFFICULTY_START_DEBT: "Adjust starting debt",
     UI_FINANCIAL_DIFFICULTY_START_DEBT_TOOLTIP: "The amount of starting debt (loan that you can't afford to pay back) can be increased, which will leave you at the mercy of loan interest for longer.",
@@ -280,7 +280,8 @@ export const StringTable =
     UI_SIMULATION_ADJUST_YEAR: "Year: ",
 
     UI_CURRENT_PARK_INFO: "{PALEGOLD}Current Park Info",
-    UI_PARK_INFO_CURRENT_DENSITY: "Current tiles per 100 soft guest cap: {0}",
+    UI_PARK_INFO_CURRENT_DENSITY: "Currently used tiles per 100 soft guest cap: {0}",
+    UI_PARK_INFO_CURRENT_DENSITY_HARD_GUEST_GEN: "Estimated used tiles per 100 soft guest cap:{NEWLINE}Regular: {0}; harder guest generation: {1}",
 
     UI_DEFAULT: "Default: ",
 }

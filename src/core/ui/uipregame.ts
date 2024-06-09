@@ -5,6 +5,7 @@ import { StringTable } from "../../util/strings";
 import { randomiser } from "../randomisermain";
 import { saveStoreMap, loadStoreMap } from "../sharedstorage";
 import { UIRandomiserInProgress } from "./uirandomiserinprogress";
+import { getCurrentTilesPer100SGC } from "../maptiles";
 
 var haveLoadedProfile = false;
 
@@ -238,6 +239,7 @@ const ObjectiveRestrictionTab = [
 		]
 	}),
 ]
+
 const LandTab = [
 	label({
 		text: StringTable.UI_LAND_SETTINGS
@@ -246,7 +248,7 @@ const LandTab = [
 		storekey: "TilesPer100SGC",
 		prompt: StringTable.UI_LAND_TILES_PER_100_SGC,
 		tooltip: StringTable.UI_LAND_TILES_PER_100_SGC_TOOLTIP,
-		extendedhelp: StringTable.UI_LAND_TILES_PER_100_SGC_EXTHELP,
+		extendedhelp: [StringTable.UI_LAND_TILES_PER_100_SGC_EXTHELP, getCurrentTilesPer100SGC],
 		defaultvalue: 250,
 		minimum: 1,
 		maximum: 10000,
@@ -257,7 +259,7 @@ const LandTab = [
 		storekey: "TilesPer100SGCHardGuestGen",
 		prompt: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN,
 		tooltip: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_TOOLTIP,
-		extendedhelp: StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_EXTHELP,
+		extendedhelp: [StringTable.UI_LAND_TILES_PER_100_SGC_HARD_GUEST_GEN_EXTHELP, getCurrentTilesPer100SGC],
 		defaultvalue: 550,
 		minimum: 1,
 		maximum: 10000,
