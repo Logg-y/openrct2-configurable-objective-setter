@@ -416,6 +416,9 @@ export var ScenarioSettings: ScenarioSettingsType =
         let loanMod = this.loanInterest - getConfigOption("ScenarioInterestRate");
         if (Math.abs(loanMod) < 0.0001) { loanMod = 0; }
         setParkStorageKey("LoanInterestModification", loanMod);
+        // Not read for now, but with future plugin exposures it should be possible to get the scenario's base value directly
+        // which will eliminate people messing up and not setting this properly, having this written means fixing savedgames is possible
+        setParkStorageKey("TargetLoanInterest",  this.loanInterest);
         setParkStorageKey("ScenarioLength", this.scenarioLength);
         setParkStorageKey("ObjectiveQuantity", this.objectiveQuantity);
     }

@@ -10,6 +10,7 @@ const numberOptions =
     "RandomisationState",
     "GuestInitialCash",
     "LoanInterestModification",
+    "TargetLoanInterest",
     "ScenarioLength",
     "ObjectiveQuantity",
     "SimAverageMonthlyCash",
