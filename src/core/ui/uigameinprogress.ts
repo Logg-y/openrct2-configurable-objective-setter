@@ -206,6 +206,30 @@ const simTabContent = [
     }),
 ]
 
+let currentDensityStore = store(StringTable.UI_PARK_INFO_CURRENT_DENSITY);
+
+function parkInfoUpdate()
+{
+    let tilesPer100 = "0";
+    if (park.suggestedGuestMaximum > 0)
+    {
+        tilesPer100 = (100 * (park.parkSize/park.suggestedGuestMaximum)).toFixed(0);
+    }
+    currentDensityStore.set(formatTokens(StringTable.UI_PARK_INFO_CURRENT_DENSITY, tilesPer100))
+}
+
+const parkInfoImage: ImageAnimation =
+{
+	frameBase: 5229,
+	frameCount: 8,
+	frameDuration: 8,
+}
+
+const parkInfoContent = [
+    label({text:StringTable.UI_CURRENT_PARK_INFO}),
+    label({text:currentDensityStore}),
+]
+
 
 var builtGameInProgressUITemplate: WindowTemplate | undefined = undefined;
 
@@ -231,6 +255,13 @@ function buildGameInProgressUITemplate(): WindowTemplate
                 height: 300,
                 content: simTabContent,
             }),
+            tab({
+                image: parkInfoImage,
+                height: "auto",
+                content: parkInfoContent,
+                onOpen: parkInfoUpdate,
+                onUpdate: () => { if (date.ticksElapsed % 200 == 0) { parkInfoUpdate(); } }
+            })
         ],
     }
     let simCash = getParkStorageKey("SimAverageMonthlyCash", 0);

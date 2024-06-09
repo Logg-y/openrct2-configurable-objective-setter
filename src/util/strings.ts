@@ -279,5 +279,8 @@ export const StringTable =
     UI_SIMULATION_ADJUST_MONTH: "Month: ",
     UI_SIMULATION_ADJUST_YEAR: "Year: ",
 
+    UI_CURRENT_PARK_INFO: "{PALEGOLD}Current Park Info",
+    UI_PARK_INFO_CURRENT_DENSITY: "Current tiles per 100 soft guest cap: {0}",
+
     UI_DEFAULT: "Default: ",
 }
