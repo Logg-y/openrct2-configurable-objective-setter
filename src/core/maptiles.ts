@@ -644,10 +644,8 @@ export const MapAnalysis: MapAnalysis =
                     sortedKeys.push(highestDist);
                 }
             }
-			console.log(`converted total ${totalConverted}`);
             return totalConverted;
         };
-		console.log(`start owned to buyable: ${ScenarioSettings.numOwnedTilesToBuyable} ${this.squaresLeft}`);
         // It turns out that some tiles in some scenarios (Forest Frontiers!) have multiple bits set in a way that is nonsensical.
         // There's a strip of 5 or so tiles that have 160 = OWNERSHIP_OWNED + OWNERSHIP_AVAILABLE and that's a bit confusing
         // I did have these functions preserve most of the original bitmask, but that seems to cause more problems than it helps
@@ -675,7 +673,6 @@ export const MapAnalysis: MapAnalysis =
         {
             return false;
         }
-		console.log("start unowned to buyable");
         // We already screened tiles in this record - if they contain any path at all, we know we have to make it construction rights
         // not full ownership
         converted = abstractTileConverter(this.unownedToPurchasableTilesByDistance, ScenarioSettings.numUnownedTilesToPurchasable, (tile) =>
@@ -715,7 +712,6 @@ export const MapAnalysis: MapAnalysis =
             return false;
         }
 		
-		console.log("start ownable to notbuyable");
         converted = abstractTileConverter(this.ownableToUnownedTilesByDistance, ScenarioSettings.numOwnableTilesToMakeUnbuyable, (tile) =>
             {
                 for (const element of tile.elements)
