@@ -415,7 +415,13 @@ export class DifficultySim
         let cashPerGuest = this.getCashPerNewGuest();
         let guestDifficulty = (getConfigOption("GuestDifficulty"))/100;
         let out: AdvertisingOption[] = [];
-        let valuePerGuest = this.getLongTermValuePerGuest(strategy);
+        let valuePerGuest = cashPerGuest;
+        // This long term value only really applies with pay per ride + cash machine
+        // Because otherwise they spend all their money on park entry, then leave. And that's all the money we get off them
+        if (ScenarioSettings.payPerRide && ScenarioSettings.cashMachineMonth !== undefined && ScenarioSettings.cashMachineMonth <= this.monthsCompleted)
+        {
+            valuePerGuest = this.getLongTermValuePerGuest(strategy);
+        }
         out.push({
             type: "advertising",
             campaign: "park",
