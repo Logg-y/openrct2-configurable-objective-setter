@@ -1,5 +1,5 @@
 import { getConfigOption } from "./sharedstorage";
-import { ScenarioSettings, getGuestMinimumInitialCash } from "./scenariosettings";
+import { ScenarioSettings, calcMonthlyLoanInterest, getGuestMinimumInitialCash } from "./scenariosettings";
 import { MapAnalysis } from "./maptiles";
 import { log } from "../util/logging";
 
@@ -492,8 +492,7 @@ export class DifficultySim
         let staff = this.softGuestCap * (getConfigOption("SimStaffWagesPer100SGC")/ 100);
         let loanWeCanRepay = 10000 * Math.floor(this.cashAvailable/10000);
         let loanWeCantRepay = Math.max(0, this.unrepaidLoan - loanWeCanRepay);
-        let bigPart = loanWeCantRepay * 5 * ScenarioSettings.loanInterest;
-        let loanInterest = monthWeeks * (bigPart >>> 14);
+        let loanInterest = calcMonthlyLoanInterest(loanWeCantRepay, ScenarioSettings.loanInterest);
         // TODO check how long the research queue is and stop when we complete it
         let researchCost = 4000;
         this.thisMonthActivityLog.push(context.formatString(`Paid {CURRENCY} ride upkeep.`, sgc));
@@ -770,13 +769,13 @@ export class DifficultySim
                 type:"repayloan",
                 extraGuests: 0,
                 cost: cost,
-                actionIncome: this.monthsLeft * monthWeeks * ((cost * 5 * ScenarioSettings.loanInterest) >>> 14),
+                actionIncome: this.monthsLeft * calcMonthlyLoanInterest(cost, ScenarioSettings.loanInterest),
             })
         }
         let maxLoanWithdraw = ScenarioSettings.maxLoan - this.unrepaidLoan;
         if (maxLoanWithdraw > 0)
         {
-            let expectedInterest = this.monthsLeft * monthWeeks * ((maxLoanWithdraw * 5 * ScenarioSettings.loanInterest) >>> 14);
+            let expectedInterest = this.monthsLeft * calcMonthlyLoanInterest(maxLoanWithdraw, ScenarioSettings.loanInterest);
             // we don't really want to increase loan if it would result in spending more in interest than we get
             if (expectedInterest > 0 && expectedInterest < maxLoanWithdraw)
             {
@@ -828,7 +827,7 @@ export class DifficultySim
                 if (opt.type === "repayloan")
                 {
                     opt.cost = Math.min(this.unrepaidLoan, 10000 * Math.floor(maxProportionOfAvailableCashIntoLoanRepayment * this.cashAvailable / 10000));
-                    opt.actionIncome = this.monthsLeft * monthWeeks * ((opt.cost * 5 * ScenarioSettings.loanInterest) >>> 14);
+                    opt.actionIncome = this.monthsLeft * calcMonthlyLoanInterest(opt.cost, ScenarioSettings.loanInterest);
                     if (opt.cost <= 0)
                     {
                         continue;

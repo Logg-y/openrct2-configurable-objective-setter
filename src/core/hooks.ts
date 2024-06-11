@@ -4,6 +4,7 @@
 
 import { StringTable } from "../util/strings";
 import { getParkStorageKey } from "./parkstorage"
+import { calcWeeklyLoanInterest } from "./scenariosettings";
 
 const IntensityPreferencesNeutral = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const IntensityPreferencesLow = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5];
@@ -68,8 +69,8 @@ function applyInterestModificationHook()
         let sign = interestMod > 0 ? 1 : -1;
         let absInterestMod = Math.abs(interestMod);
         context.registerAction("ConfigurableObjectiveSetterLoanInterest", (_) => { return {}}, (_) => {
-            // This bitshift goes very wrong with a negative interest modifier!
-            let weeklyInterest = sign * ((park.bankLoan * 5 * absInterestMod) >>> 14);
+            // The bitshift goes very wrong with a negative interest modifier!
+            let weeklyInterest = sign * calcWeeklyLoanInterest(park.bankLoan, absInterestMod);
             return {cost: weeklyInterest, expenditureType: "interest"};
         })
 

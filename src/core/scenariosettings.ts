@@ -423,3 +423,17 @@ export var ScenarioSettings: ScenarioSettingsType =
         setParkStorageKey("ObjectiveQuantity", this.objectiveQuantity);
     }
 }
+
+export function calcWeeklyLoanInterest(loanAmount: number, interestRate: number)
+{
+    // See: src/management/Finance.cpp
+    // The RCT1 interest calc comes out to an effective annual interest of exactly 16384/12000, or ~1.36%
+    let bigPart = loanAmount * 5 * interestRate;
+    let loanInterest = bigPart >>> 14;
+    return loanInterest;
+}
+
+export function calcMonthlyLoanInterest(loanAmount: number, interestRate: number)
+{
+    return 4 * calcWeeklyLoanInterest(loanAmount, interestRate);
+}

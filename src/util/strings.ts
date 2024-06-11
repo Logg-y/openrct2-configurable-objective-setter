@@ -258,7 +258,7 @@ export const StringTable =
 
     UI_OBJECTIVE_CONDITION_PAY_PER_RIDE: "Guests pay per ride.",
     UI_OBJECTIVE_CONDITION_PAY_FOR_ENTRY: "Guests pay for park entry.",
-    UI_OBJECTIVE_CONDITION_LOAN_MODIFICATION: "Loan interest has been modified by {0}%.",
+    UI_OBJECTIVE_CONDITION_LOAN_MODIFICATION: "Loan interest has been modified by {0}%.{NEWLINE}Each {CURRENCY} loan should cost {CURRENCY} in monthly interest.",
     UI_OBJECTIVE_CONDITION_GUEST_CASH_MODIFICATION: "Guest starting cash is now {CURRENCY}-{CURRENCY}.",
     UI_OBJECTIVE_CONDITION_FORBID_MARKETING: "Marketing campaigns are forbidden.",
     UI_OBJECTIVE_CONDITION_HARDER_GUEST_GENERATION: "Harder guest generation is active.",
@@ -282,6 +282,7 @@ export const StringTable =
     UI_CURRENT_PARK_INFO: "{PALEGOLD}Current Park Info",
     UI_PARK_INFO_CURRENT_DENSITY: "Currently used tiles per 100 soft guest cap: {0}",
     UI_PARK_INFO_CURRENT_DENSITY_HARD_GUEST_GEN: "Estimated used tiles per 100 soft guest cap:{NEWLINE}Regular: {0}; harder guest generation: {1}",
+    UI_PARK_INFO_CURRENT_INTEREST: "Your current loan should cost {CURRENCY} per month in interest.",
 
     UI_DEFAULT: "Default: ",
 }

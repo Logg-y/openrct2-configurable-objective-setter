@@ -4,6 +4,7 @@ import { StringTable, formatTokens } from "../../util/strings";
 import { getParkStorageKey } from "../parkstorage";
 import { labelWithExtendedHelpWrapper } from "./uiinclude";
 import { getCurrentTilesPer100SGC } from "../maptiles";
+import { calcMonthlyLoanInterest } from "../scenariosettings";
 
 // Not all rows will necessarily appear, so we define everything and the order they will appear in
 // along with a function that decides if they appear or not
@@ -60,8 +61,10 @@ const MainTabElements: PossibleTabElement[] = [
     () => { 
         let mod = getParkStorageKey("LoanInterestModification", 0);
         if (mod == 0) return undefined;
+        let interest = calcMonthlyLoanInterest(10000, getParkStorageKey("TargetLoanInterest", 5));
         return label({
-        text: formatTokens(StringTable.UI_OBJECTIVE_CONDITION_LOAN_MODIFICATION, mod.toFixed(3)),
+        text: formatTokens(context.formatString(StringTable.UI_OBJECTIVE_CONDITION_LOAN_MODIFICATION, 10000, interest), mod.toFixed(3)),
+        height: 25,
     }); },
     () => { 
         let mod = getParkStorageKey("GuestInitialCash", park.guestInitialCash);
@@ -208,11 +211,13 @@ const simTabContent = [
 ]
 
 let currentDensityStore = store(StringTable.UI_PARK_INFO_CURRENT_DENSITY);
+let currentInterestStore = store(StringTable.UI_PARK_INFO_CURRENT_INTEREST);
 
 function parkInfoUpdate()
 {
     let text = getCurrentTilesPer100SGC();
     currentDensityStore.set(text);
+    currentInterestStore.set(context.formatString(StringTable.UI_PARK_INFO_CURRENT_INTEREST, calcMonthlyLoanInterest(park.bankLoan, getParkStorageKey("TargetLoanInterest", 5))));
 }
 
 const parkInfoImage: ImageAnimation =
@@ -225,6 +230,7 @@ const parkInfoImage: ImageAnimation =
 const parkInfoContent = [
     label({text:StringTable.UI_CURRENT_PARK_INFO}),
     label({text:currentDensityStore, height:25}),
+    label({text:currentInterestStore, height:25}),
 ]
 
 
