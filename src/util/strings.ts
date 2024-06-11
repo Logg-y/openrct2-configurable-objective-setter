@@ -128,7 +128,7 @@ export const StringTable =
     UI_FINANCIAL_MAXIMUM_LOAN_INTEREST: "Max loan interest: ",
     UI_FINANCIAL_MAXIMUM_LOAN_INTEREST_TOOLTIP: "Loan interest cannot be raised higher than this value.",
 
-    UI_FINANCIAL_MAXIMUM_LAND_PRICE: "Max loan price: ",
+    UI_FINANCIAL_MAXIMUM_LAND_PRICE: "Max land price: ",
     UI_FINANCIAL_MAXIMUM_LAND_PRICE_TOOLTIP: "'Force buying land to expand' won't be allowed to increase land price beyond this amount. This is an option because land can get so expensive that the financial pressure to build a highly dense park could get unfun.",
 
     UI_FINANCIAL_SCENARIO_INTEREST: "Scenario's base interest (for RCT1 scenarios use 1.37): ",
