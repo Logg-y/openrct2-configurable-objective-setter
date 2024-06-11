@@ -429,7 +429,7 @@ export class DifficultyAdjuster
 
         // In repay loan mode, start by pushing the initial debt up high
         let forcedPressure: FinancialPressure | undefined = undefined;
-        if (this.mode == "coarse" && ScenarioSettings.objectiveType == "repayLoanAndParkValue")
+        if (this.mode == "coarse" && ScenarioSettings.objectiveType == "repayLoanAndParkValue" && this.unadjustableFinancialPressures.indexOf("initialdebt") == -1)
         {
             forcedPressure = "initialdebt";
         }
@@ -550,7 +550,7 @@ export class DifficultyAdjuster
     // Return: true if we managed to adjust settings, false if we can't
     adjustSettingsForDifficulty(amount: number, financialPressure: FinancialPressure | undefined): SimulationStatusReport.OK | SimulationStatusReport.IMPOSSIBLE
     {
-        if (financialPressure === undefined)
+        if (financialPressure === undefined || !this.canAdjustPressure(financialPressure, amount))
         {
             let toAdjust = this.getRandomFinancialPressureToAdjust(amount);
             if (toAdjust == SimulationStatusReport.IMPOSSIBLE)
