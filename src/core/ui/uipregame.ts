@@ -308,7 +308,7 @@ const FinancialTab = [
 		storekey: "FinancialDifficultyMethodsMin",
 		prompt: StringTable.UI_FINANCIAL_DIFFICULTY_METHODS_MIN,
 		tooltip: StringTable.UI_FINANCIAL_DIFFICULTY_METHODS_MIN_TOOLTIP,
-		defaultvalue: 1,
+		defaultvalue: 4,
 		minimum: 0,
 		maximum: 4,
 		step: 1,
