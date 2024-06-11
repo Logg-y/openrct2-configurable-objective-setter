@@ -772,7 +772,7 @@ export class DifficultySim
                 actionIncome: this.monthsLeft * calcMonthlyLoanInterest(cost, ScenarioSettings.loanInterest),
             })
         }
-        let maxLoanWithdraw = ScenarioSettings.maxLoan - this.unrepaidLoan;
+        let maxLoanWithdraw = ScenarioSettings.maxLoan + ScenarioSettings.initialDebt - this.unrepaidLoan;
         if (maxLoanWithdraw > 0)
         {
             let expectedInterest = this.monthsLeft * calcMonthlyLoanInterest(maxLoanWithdraw, ScenarioSettings.loanInterest);
