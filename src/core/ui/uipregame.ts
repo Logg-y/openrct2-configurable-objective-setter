@@ -331,6 +331,24 @@ const FinancialTab = [
 		maximum: 200,
 		step: 1,
 	}),
+	storedNumberSpinner({
+		storekey: "FinancialDifficultyMaxInterestRate",
+		prompt: StringTable.UI_FINANCIAL_MAXIMUM_LOAN_INTEREST,
+		tooltip: StringTable.UI_FINANCIAL_MAXIMUM_LOAN_INTEREST_TOOLTIP,
+		defaultvalue: 100,
+		minimum: 1,
+		// Vanilla limit is 255 because of uint8_t, because we use a hook we can go beyond that
+		step: 1,
+	}),
+	storedNumberSpinner({
+		storekey: "FinancialDifficultyMaxLandPrice",
+		prompt: StringTable.UI_FINANCIAL_MAXIMUM_LAND_PRICE,
+		tooltip: StringTable.UI_FINANCIAL_MAXIMUM_LAND_PRICE_TOOLTIP,
+		defaultvalue: 1000,
+		formatCurrency: true,
+		minimum: 10,
+		step: 10,
+	}),
 	groupbox({
 		text: StringTable.UI_FINANCIAL_DIFFICULTIES,
 		content: [

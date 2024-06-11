@@ -63,6 +63,9 @@ function guestInitialCashHook(evt: GuestGenerationArgs)
 
 function applyInterestModificationHook()
 {
+    // If writing to the native loan interest property is possible in future this may still be needed to support really high values
+    // https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/GameState.h#L78 - at the time of writing BankLoanInterestRate is a uint8_t
+    // hence why the scenario settings window caps it to 255
     let interestMod = getParkStorageKey("LoanInterestModification", 0);
     if (interestMod != 0)
     {

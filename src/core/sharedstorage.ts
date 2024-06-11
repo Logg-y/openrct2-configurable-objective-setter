@@ -44,6 +44,8 @@ const numberOptions =
     "FinancialDifficultyMethodsMin",
     "FinancialDifficultyMethodsMax",
     "FinancialDifficultyMinInterestRate",
+    "FinancialDifficultyMaxInterestRate",
+    "FinancialDifficultyMaxLandPrice",
     "IntensityPreferenceWeightNone",
     "IntensityPreferenceWeightHigh",
     "IntensityPreferenceWeightLow",

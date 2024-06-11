@@ -125,6 +125,12 @@ export const StringTable =
     UI_FINANCIAL_MINIMUM_LOAN_INTEREST: "Min loan interest: ",
     UI_FINANCIAL_MINIMUM_LOAN_INTEREST_TOOLTIP: "Loan interest will be forced to always be higher than this value. A high value of loan interest can be interesting as it adds a choice between building more park and paying off loan.",
 
+    UI_FINANCIAL_MAXIMUM_LOAN_INTEREST: "Max loan interest: ",
+    UI_FINANCIAL_MAXIMUM_LOAN_INTEREST_TOOLTIP: "Loan interest cannot be raised higher than this value.",
+
+    UI_FINANCIAL_MAXIMUM_LAND_PRICE: "Max loan price: ",
+    UI_FINANCIAL_MAXIMUM_LAND_PRICE_TOOLTIP: "'Force buying land to expand' won't be allowed to increase land price beyond this amount. This is an option because land can get so expensive that the financial pressure to build a highly dense park could get unfun.",
+
     UI_FINANCIAL_SCENARIO_INTEREST: "Scenario's base interest (for RCT1 scenarios use 1.37): ",
     UI_FINANCIAL_SCENARIO_INTEREST_TOOLTIP: "The plugin API cannot access a scenario's base interest so I have to ask for it. For scenarios using RCT1 interest calculation, this should be set to ~1.37.",
 
@@ -258,7 +264,7 @@ export const StringTable =
 
     UI_OBJECTIVE_CONDITION_PAY_PER_RIDE: "Guests pay per ride.",
     UI_OBJECTIVE_CONDITION_PAY_FOR_ENTRY: "Guests pay for park entry.",
-    UI_OBJECTIVE_CONDITION_LOAN_MODIFICATION: "Loan interest has been modified by {0}%.{NEWLINE}Each {CURRENCY} loan should cost {CURRENCY} in monthly interest.",
+    UI_OBJECTIVE_CONDITION_LOAN_MODIFICATION: "Loan interest has been modified by {0}%.{NEWLINE}Each {CURRENCY} loan costs {CURRENCY} in monthly interest.",
     UI_OBJECTIVE_CONDITION_GUEST_CASH_MODIFICATION: "Guest starting cash is now {CURRENCY}-{CURRENCY}.",
     UI_OBJECTIVE_CONDITION_FORBID_MARKETING: "Marketing campaigns are forbidden.",
     UI_OBJECTIVE_CONDITION_HARDER_GUEST_GENERATION: "Harder guest generation is active.",
@@ -282,7 +288,7 @@ export const StringTable =
     UI_CURRENT_PARK_INFO: "{PALEGOLD}Current Park Info",
     UI_PARK_INFO_CURRENT_DENSITY: "Currently used tiles per 100 soft guest cap: {0}",
     UI_PARK_INFO_CURRENT_DENSITY_HARD_GUEST_GEN: "Estimated used tiles per 100 soft guest cap:{NEWLINE}Regular: {0}; harder guest generation: {1}",
-    UI_PARK_INFO_CURRENT_INTEREST: "Your current loan should cost {CURRENCY} per month in interest.",
+    UI_PARK_INFO_CURRENT_INTEREST: "Your current loan costs {CURRENCY} per month in interest.",
 
     UI_DEFAULT: "Default: ",
 }

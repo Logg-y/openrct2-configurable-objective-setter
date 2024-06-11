@@ -29,7 +29,7 @@ export const FinancialPressureParams: Record<FinancialPressure, FinancialPressur
     },
     "loaninterest":
     {
-        // ScenarioSettings.rollRandom overwrites min bsaed on config
+        // ScenarioSettings.rollRandom overwrites min and max based on config
         "min": 1,
         "max": 100,
         "step": 0.1,
@@ -37,8 +37,7 @@ export const FinancialPressureParams: Record<FinancialPressure, FinancialPressur
     "landcost":
     {
         "min": 100,
-        // Setting this value too high will tend to make it force you to build only on your starting land...
-        // It also makes deviating from the target density even slightly really punishing.
+        // ScenarioSettings.rollRandom overwrites max based on config
         "max": 1500,
         "step": 1,
     },
@@ -320,6 +319,8 @@ export var ScenarioSettings: ScenarioSettingsType =
 
         FinancialPressureParams.initialcash.max = getConfigOption("StartingCash") + 250000;
         FinancialPressureParams.loaninterest.min = getConfigOption("FinancialDifficultyMinInterestRate");
+        FinancialPressureParams.loaninterest.max = getConfigOption("FinancialDifficultyMaxInterestRate");
+        FinancialPressureParams.landcost.max = getConfigOption("FinancialDifficultyMaxLandPrice");
         this.loanInterest = Math.max(FinancialPressureParams.loaninterest.min, this.loanInterest);
     },
 
