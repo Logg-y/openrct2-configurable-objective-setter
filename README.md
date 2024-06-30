@@ -27,6 +27,18 @@ The interesting kind of difficulty in my opinion is that which comes from financ
 
 Many of the default values are simply guesses on my part: depending on how you like to play your game some options will want changing.
 
+# Installation and Usage
+
+As with all OpenRCT2 plugins, scroll up to the top of the page, find the "Releases" section, and download the latest. Copy this to your OpenRCT2 plugin directory, which is:
+
+- Windows: `C:\Users\YourName\Documents\OpenRCT2`
+- Mac: `/Users/YourName/Library/Application Support/OpenRCT2`
+- Linux: `$XDG_CONFIG_HOME/OpenRCT2` or in its absence `$HOME/.config/OpenRCT2`
+
+If you had the game open, you will need to quit and relaunch it.
+
+If everything went well, this plugin's entry will appear under the map button dropdown once playing a scenario.
+
 # Thanks
 
 - This is built on Basssiiie's [Typescript plugin template](https://github.com/Basssiiie/OpenRCT2-Simple-Typescript-Template), which was an incredibly useful starting point as this is the first thing I've ever had to do with Javascript/Typescript at all and having simple instructions to follow for a hot-reloading setup was amazing.
