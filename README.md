@@ -31,9 +31,9 @@ Many of the default values are simply guesses on my part: depending on how you l
 
 As with all OpenRCT2 plugins, scroll up to the top of the page, find the "Releases" section, and download the latest. Copy this to your OpenRCT2 plugin directory, which is:
 
-- Windows: `C:\Users\YourName\Documents\OpenRCT2`
-- Mac: `/Users/YourName/Library/Application Support/OpenRCT2`
-- Linux: `$XDG_CONFIG_HOME/OpenRCT2` or in its absence `$HOME/.config/OpenRCT2`
+- Windows: `C:\Users\YourName\Documents\OpenRCT2\plugin`
+- Mac: `/Users/YourName/Library/Application Support/OpenRCT2/plugin`
+- Linux: `$XDG_CONFIG_HOME/OpenRCT2/plugin` or in its absence `$HOME/.config/OpenRCT2/plugin`
 
 If you had the game open, you will need to quit and relaunch it.
 
